@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+.pytest_cache/
+# Relate runtime marker files (empty, recreated on open). Everything else in
+# data/ripple.relate/ is needed to open the store and is committed.
+.cypherlite.writer

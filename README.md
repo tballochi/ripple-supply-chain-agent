@@ -20,6 +20,7 @@ cp .env.example .env        # optional: add a free Groq or Mistral key for the L
 ## Try it
 
 ```bash
+streamlit run app.py                           # the web UI
 python -m ripple.queries Rotterdam 3          # port closed for 3 days
 python -m ripple.queries "MV Silver Spirit" 4  # vessel out of service for 4 days
 python -m ripple.retrieval "the ransomware attack in Korea"   # free text -> alert -> port

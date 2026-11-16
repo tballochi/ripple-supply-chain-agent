@@ -1,5 +1,7 @@
 relate-db==1.0.2
 fastembed==0.9.1
+streamlit>=1.50
+pandas
 requests
 python-dotenv
 pytest

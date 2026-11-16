@@ -1,0 +1,45 @@
+"""Smoke test of the Streamlit page: it must render without an exception."""
+
+from pathlib import Path
+
+import pytest
+from streamlit.testing.v1 import AppTest
+
+APP = str(Path(__file__).resolve().parent.parent / "app.py")
+
+
+@pytest.fixture(autouse=True)
+def fulltext_only(monkeypatch):
+    monkeypatch.setenv("RIPPLE_NO_EMBEDDINGS", "1")
+    for key in ("GROQ_API_KEY", "MISTRAL_API_KEY"):  # never call a real LLM in tests
+        monkeypatch.setenv(key, "")
+
+
+def render(question=None):
+    page = AppTest.from_file(APP, default_timeout=60)
+    if question:
+        page.session_state["question"] = question
+    page.run()
+    assert not page.exception
+    return page
+
+
+def test_empty_page_renders():
+    assert render().metric == []
+
+
+def test_port_closure_page_shows_the_impact():
+    page = render("Port of Rotterdam closed for 3 days")
+    metrics = {m.label: m.value for m in page.metric}
+    assert metrics["Shipments late"] == "16" and metrics["Second-order customers"] == "6"
+
+
+@pytest.mark.parametrize("question", [
+    "MV Silver Spirit is out of service for 4 days",   # vessel: no alternatives tab content
+    "Port of Antwerp closed for 2 days",               # nothing impacted
+    "Port of Busan closed for 2 days",                 # very few shipments
+    "ports in China closed for 2 days",                # several ports at once
+    "who won the world cup",                           # nothing matched
+])
+def test_other_pages_render(question):
+    render(question)

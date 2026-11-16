@@ -14,6 +14,7 @@ final milestone.
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python -m ripple.generate   # optional: the store is already in data/ripple.relate
+cp .env.example .env        # optional: add a free Groq or Mistral key for the LLM mode
 ```
 
 ## Try it
@@ -22,6 +23,7 @@ python -m ripple.generate   # optional: the store is already in data/ripple.rela
 python -m ripple.queries Rotterdam 3          # port closed for 3 days
 python -m ripple.queries "MV Silver Spirit" 4  # vessel out of service for 4 days
 python -m ripple.retrieval "the ransomware attack in Korea"   # free text -> alert -> port
+python -m ripple.agent "Port of Rotterdam closed for 3 days"   # full agent answer
 python -m pytest                               # run the checks
 ```
 

@@ -193,8 +193,10 @@ def build_dataset() -> dict:
     transit = {r["id"]: r["transit_days"] for r in routes}
     vessels = []
     for i, (rid, name) in enumerate(zip(assigned, names)):
-        # The voyage started some days ago, so on SCENARIO_DATE the vessel is mid-route.
-        started = SCENARIO_DATE - timedelta(days=rng.randint(2, max(3, transit[rid] - 3)))
+        # Most voyages started some days ago, so on SCENARIO_DATE the vessel is
+        # mid-route. A negative value means the voyage starts in the coming
+        # days, so first ports of call (Shanghai, ...) also have arrivals ahead.
+        started = SCENARIO_DATE - timedelta(days=rng.randint(-6, max(3, transit[rid] - 3)))
         vessels.append(dict(imo=f"IMO{9300000 + i * 137}", name=name, route=rid,
                             capacity_teu=rng.choice([4000, 8000, 12000, 16000, 20000]),
                             voyage_start=started))

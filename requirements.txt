@@ -4,4 +4,5 @@ streamlit>=1.50
 pandas
 requests
 python-dotenv
+mcp>=2,<3
 pytest

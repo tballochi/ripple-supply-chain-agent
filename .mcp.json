@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ripple": {
+      "command": ".venv/bin/python",
+      "args": ["-m", "ripple.mcp_server"]
+    }
+  }
+}

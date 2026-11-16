@@ -16,7 +16,7 @@ import random
 import shutil
 from datetime import date, timedelta
 
-from . import db
+from . import db, embeddings
 
 SEED = 42
 # The story's "today". Fixed so the data does not change from day to day.
@@ -148,6 +148,25 @@ NOISE_ALERTS = [
 ]
 
 
+# Hand-written headlines about one-off incidents. Each wording is unique, so a
+# question like "the ransomware attack in Korea" can only be answered by
+# finding this alert first and then following MENTIONS to the port.
+HEADLINE_ALERTS = [
+    ("high", "Typhoon Mira expected to make landfall near Shanghai; Yangshan and Ningbo terminals will suspend operations.",
+     ["CNSHA", "CNNGB"]),
+    ("high", "Ransomware attack knocks out the terminal operating system at Busan New Port; all gates closed.",
+     ["KRPUS"]),
+    ("high", "Grounded container ship blocks the canal entrance at Port Said; northbound convoys suspended.",
+     ["EGPSD"]),
+    ("high", "Dutch dock workers walk out over pay: Rotterdam terminals at a standstill.",
+     ["NLRTM"]),
+    ("medium", "Earthquake damages quay walls in Tokyo Bay; berth inspections under way.",
+     ["JPTYO"]),
+    ("high", "Oil spill in the Strait of Gibraltar halts vessel traffic at Algeciras and Tanger Med.",
+     ["ESALG", "MAPTM"]),
+]
+
+
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
     """Great-circle distance between two points on Earth."""
     p1, p2 = math.radians(lat1), math.radians(lat2)
@@ -267,6 +286,12 @@ def build_dataset() -> dict:
         alerts.append(dict(id=f"A{43 + j:03d}", text=text, severity=severity,
                            date=SCENARIO_DATE - timedelta(days=rng.randint(0, 20))))
 
+    for severity, text, codes in HEADLINE_ALERTS:
+        aid = f"A{len(alerts) + 1:03d}"
+        alerts.append(dict(id=aid, text=text, severity=severity,
+                           date=SCENARIO_DATE - timedelta(days=rng.randint(0, 3))))
+        mentions += [dict(alert=aid, port=code) for code in codes]
+
     return dict(ports=ports, near=near, routes=routes, calls=calls, vessels=vessels,
                 products=products, customers=customers, supplies=supplies,
                 shipments=shipments, contains=contains, alerts=alerts, mentions=mentions)
@@ -313,6 +338,16 @@ def load(data: dict) -> None:
         db.create_schema(conn)
         for key, cypher in LOAD_STEPS:
             conn.execute(cypher, {"rows": data[key]})
+
+        # Search indexes over the alert text. The vectors come from a local
+        # model; without it we still build the full-text index.
+        vectors = embeddings.embed([a["text"] for a in data["alerts"]])
+        if vectors:
+            rows = [{"id": a["id"], "vector": v} for a, v in zip(data["alerts"], vectors)]
+            conn.execute(
+                "UNWIND $rows AS r MATCH (a:Alert {id: r.id}) "
+                f"SET a.embedding = vector(r.vector, {embeddings.DIMENSIONS}, FLOAT32)", {"rows": rows})
+        db.create_search_indexes(conn, with_vectors=bool(vectors))
         print("Nodes:")
         for row in conn.execute("MATCH (n) RETURN labels(n)[0] AS label, count(*) AS n ORDER BY label"):
             print(f"  {row['label']:<10}{row['n']:>5}")

@@ -48,3 +48,20 @@ def create_schema(conn) -> None:
             f"CREATE CONSTRAINT {label.lower()}_{key} IF NOT EXISTS "
             f"FOR (n:{label}) REQUIRE n.{key} IS UNIQUE"
         )
+
+
+def create_search_indexes(conn, with_vectors: bool) -> None:
+    """Indexes used to match free text against the news alerts.
+
+    - Full-text index: finds alerts sharing words with the question (BM25).
+    - Vector index: finds alerts with a similar meaning, even with no word
+      in common. Needs the embeddings stored on each alert.
+    """
+    conn.execute("CREATE FULLTEXT INDEX alert_text IF NOT EXISTS FOR (a:Alert) ON EACH [a.text]")
+    if with_vectors:
+        from .embeddings import DIMENSIONS
+        conn.execute(
+            "CREATE VECTOR INDEX alert_embedding IF NOT EXISTS FOR (a:Alert) ON (a.embedding) "
+            f"OPTIONS {{indexConfig: {{`vector.dimensions`: {DIMENSIONS}, "
+            "`vector.similarity_function`: 'cosine'}}"
+        )

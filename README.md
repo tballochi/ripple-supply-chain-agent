@@ -21,6 +21,7 @@ python -m ripple.generate   # optional: the store is already in data/ripple.rela
 ```bash
 python -m ripple.queries Rotterdam 3          # port closed for 3 days
 python -m ripple.queries "MV Silver Spirit" 4  # vessel out of service for 4 days
+python -m ripple.retrieval "the ransomware attack in Korea"   # free text -> alert -> port
 python -m pytest                               # run the checks
 ```
 

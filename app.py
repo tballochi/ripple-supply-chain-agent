@@ -5,7 +5,9 @@ ranked list of impacted shipments, and for each one the graph path that
 explains it. No analysis logic lives here.
 """
 
+import base64
 import os
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -23,7 +25,8 @@ EXAMPLES = [
 COLORS = {"Port": "#E4572E", "Route": "#F3A712", "Vessel": "#4C9F70",
           "Shipment": "#3A7CA5", "Customer": "#7B5EA7"}
 
-st.set_page_config(page_title="Ripple", page_icon="🌊", layout="wide")
+ASSETS = Path(__file__).resolve().parent / "assets"
+st.set_page_config(page_title="Ripple", page_icon=str(ASSETS / "icon.png"), layout="wide")
 
 # On Streamlit Community Cloud the API keys come from the app's Secrets
 # instead of a .env file. Without any key the app runs in rule-based mode.
@@ -255,7 +258,12 @@ def show_mitigation(result: dict, key: str) -> None:
 
 # ------------------------------------------------------------------- sidebar
 with st.sidebar:
-    st.title("🌊 Ripple")
+    # The logo (assets/make_logo.py) inlined as SVG so it stays sharp.
+    logo = base64.b64encode((ASSETS / "logo.svg").read_bytes()).decode()
+    st.markdown(f'<div style="display:flex;align-items:center;gap:12px;margin-bottom:.4rem">'
+                f'<img src="data:image/svg+xml;base64,{logo}" width="56" alt="">'
+                f'<span style="font-size:2rem;font-weight:700">Ripple</span></div>',
+                unsafe_allow_html=True)
     st.caption("Supply chain disruption agent on a Relate graph")
     if llm.available():
         use_llm = st.toggle(f"Use LLM ({llm.provider()})", value=True)

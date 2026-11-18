@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.svg" width="128" alt="Ripple logo: a disruption rippling across a spider web"></p>
+
 # Ripple
 
 [![tests](https://github.com/tballochi/ripple-supply-chain-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/tballochi/ripple-supply-chain-agent/actions/workflows/tests.yml)

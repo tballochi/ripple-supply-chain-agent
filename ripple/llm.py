@@ -27,6 +27,7 @@ PROVIDERS = {
 
 def provider() -> str | None:
     """Name of the provider to use, or None when no key is configured."""
+    load_dotenv()  # re-read .env: a key added while the app runs is picked up
     forced = os.environ.get("RIPPLE_LLM_PROVIDER", "").lower()
     names = [forced] if forced in PROVIDERS else list(PROVIDERS)
     for name in names:

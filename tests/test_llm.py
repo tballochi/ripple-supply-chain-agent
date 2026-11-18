@@ -51,3 +51,11 @@ def test_network_error_is_wrapped(groq):
 
 def test_no_key_means_no_provider():
     assert llm.provider() is None and not llm.available()
+
+
+def test_key_added_to_env_file_while_running_is_picked_up(monkeypatch, tmp_path):
+    monkeypatch.delenv("GROQ_API_KEY")
+    monkeypatch.delenv("MISTRAL_API_KEY")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(llm, "load_dotenv", lambda: llm.os.environ.setdefault("GROQ_API_KEY", "from-file"))
+    assert llm.provider() == "groq"

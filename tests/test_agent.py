@@ -92,3 +92,12 @@ def test_llm_failure_falls_back_to_rules(conn, monkeypatch):
     out = agent.answer(conn, "Port of Rotterdam closed for 3 days")
     assert out["planned_by"] == out["explained_by"] == "rules"
     assert out["results"][0]["summary"]["shipments"] > 0
+
+
+def test_explanation_splits_on_board_and_not_loaded(conn):
+    out = agent.answer(conn, "Port of Rotterdam closed for 3 days", use_llm=False)
+    impacted = out["results"][0]["impacted"]
+    on_board = sum(r["reason"].startswith("on board") for r in impacted)
+    assert 0 < on_board < len(impacted)
+    assert f"{on_board} are already on board" in out["explanation"]
+    assert f"{len(impacted) - on_board} are not loaded yet" in out["explanation"]

@@ -102,3 +102,15 @@ def test_every_port_has_an_impact_for_a_three_day_closure(conn):
     assert not too_small, f"ports with fewer than 3 impacted shipments: {too_small}"
     for code, name in DEMO_PORTS.items():
         assert counts[code] >= 10, f"demo port {name} has only {counts[code]} impacted shipments"
+
+
+def test_reason_tells_on_board_from_not_loaded_yet(conn):
+    data = build_dataset()
+    seq = {(c["route"], c["port"]): c["seq"] for c in data["calls"]}
+    rows = queries.port_closure(conn, "NLRTM", 3)["impacted"]
+    reasons = {r["reason"] for r in rows}
+    assert reasons == {queries.ON_BOARD, queries.NOT_LOADED}  # Rotterdam shows both cases
+    shipments = {s["id"]: s for s in data["shipments"]}
+    for r in rows:
+        loaded_before = seq[(r["route_id"], shipments[r["shipment"]]["origin"])] < seq[(r["route_id"], "NLRTM")]
+        assert r["reason"] == (queries.ON_BOARD if loaded_before else queries.NOT_LOADED)

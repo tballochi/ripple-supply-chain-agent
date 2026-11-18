@@ -130,10 +130,15 @@ def explain_with_rules(results: list, plan: dict) -> str:
             f"{s['max_delay_days']} days, affecting {s['customers']} customers and "
             f"{money(s['value_at_risk_usd'])} of cargo. {s['sla_breaches']} of them exceed the delay "
             f"the customer tolerates.")
+        if d["kind"] == "port_closure":
+            on_board = sum(r["reason"] == queries.ON_BOARD for r in result["impacted"])
+            lines.append(f"{on_board} are already on board and wait with the vessel; "
+                         f"{s['shipments'] - on_board} are not loaded yet and wait on the quay "
+                         "for a vessel that arrives late.")
         top = result["impacted"][0]
         lines.append(
             f"Most exposed: shipment {top['shipment']} for {top['customer']} ({top['tier']} customer, "
-            f"{top['priority']} priority), {top['delay_days']} days late because the {top['reason']}. "
+            f"{top['priority']} priority), {top['delay_days']} days late ({top['reason']}). "
             f"New ETA {top['new_eta']} instead of {top['eta']}.")
         lines.append(f"Path followed: `{top['path']}`")
         if result["downstream"]:

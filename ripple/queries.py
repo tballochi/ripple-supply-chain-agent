@@ -8,7 +8,11 @@ The model of a port closure is deliberately simple, so it can be explained:
   - A vessel scheduled to arrive during the closure waits outside until the
     port reopens. Its delay is (reopening date - scheduled arrival).
   - Every shipment that vessel still has to deliver at that port or at a
-    later call of the route is late by the same number of days.
+    later call of the route is late by the same number of days. Two cases:
+      * on board: loaded before the closed port, it waits at sea with the
+        vessel;
+      * not loaded yet: loaded at the closed port or later on the route, it
+        waits on the quay for a vessel that arrives late.
 
 All the "who is affected" logic is in Cypher. Python only scores and formats
 the rows that come back.
@@ -51,12 +55,11 @@ WHERE arrival >= $start AND arrival < $reopen AND s.status <> 'delivered'
 // Keep only shipments unloaded at the closed port or later on the route.
 MATCH (s)-[:DESTINATION]->(dest:Port)<-[dest_call:CALLS_AT]-(r)
 WHERE dest_call.seq >= call.seq
-MATCH (s)-[:ORIGIN]->(orig:Port)
+// Where is the cargo loaded: before the closed port (already on board) or not?
+MATCH (s)-[:ORIGIN]->(orig:Port)<-[orig_call:CALLS_AT]-(r)
 RETURN {PATH_COLUMNS},
   duration.inDays(arrival, $reopen).days AS delay_days, arrival AS vessel_arrival,
-  CASE WHEN dest = port THEN 'destination port is closed'
-       WHEN orig = port THEN 'loading port is closed'
-       ELSE 'vessel is held up at the closed port on its way' END AS reason,
+  CASE WHEN orig_call.seq < call.seq THEN $on_board ELSE $not_loaded END AS reason,
   {SHIPMENT_COLUMNS}
 """
 
@@ -69,7 +72,7 @@ MATCH (s)-[:DESTINATION]->(dest:Port)
 MATCH (s)-[:ORIGIN]->(orig:Port)
 RETURN {PATH_COLUMNS},
   $days AS delay_days, null AS vessel_arrival,
-  'vessel is out of service' AS reason,
+  $vessel_down AS reason,
   {SHIPMENT_COLUMNS}
 """
 
@@ -90,6 +93,11 @@ RETURN alt.code AS code, alt.name AS name, alt.country AS country, near.km AS km
   COLLECT { MATCH (alt)<-[:CALLS_AT]-(r:Route)-[:CALLS_AT]->(port) RETURN r.id ORDER BY r.id } AS shared_routes
 ORDER BY size(shared_routes) DESC, km
 """
+
+# The reasons a shipment is late, as shown to the user.
+ON_BOARD = "on board: the vessel is held up at the closed port"
+NOT_LOADED = "not loaded yet: the vessel reaches the loading port late"
+VESSEL_DOWN = "on board: the vessel is out of service"
 
 PRIORITY_WEIGHT = {"standard": 1, "express": 2, "critical": 3}
 TIER_WEIGHT = {"standard": 1.0, "key": 1.5, "strategic": 2.0}
@@ -160,7 +168,8 @@ def port_closure(conn, code: str, days: int, start: date = SCENARIO_DATE) -> dic
     if port is None:
         raise ValueError(f"Unknown port code: {code}")
     reopen = start + timedelta(days=days)
-    rows = conn.execute(PORT_IMPACT, {"code": code, "start": start, "reopen": reopen}).fetchall()
+    rows = conn.execute(PORT_IMPACT, {"code": code, "start": start, "reopen": reopen,
+                                      "on_board": ON_BOARD, "not_loaded": NOT_LOADED}).fetchall()
     alternatives = [dict(r) for r in conn.execute(ALTERNATIVES, {"code": code})]
     disruption = {"kind": "port_closure", "code": code, "name": port["name"],
                   "days": days, "start": start, "reopen": reopen}
@@ -172,7 +181,7 @@ def vessel_outage(conn, imo: str, days: int, start: date = SCENARIO_DATE) -> dic
     vessel = conn.execute("MATCH (v:Vessel {imo: $imo}) RETURN v.name AS name", {"imo": imo}).fetchone()
     if vessel is None:
         raise ValueError(f"Unknown vessel: {imo}")
-    rows = conn.execute(VESSEL_IMPACT, {"imo": imo, "days": days}).fetchall()
+    rows = conn.execute(VESSEL_IMPACT, {"imo": imo, "days": days, "vessel_down": VESSEL_DOWN}).fetchall()
     disruption = {"kind": "vessel_outage", "code": imo, "name": vessel["name"],
                   "days": days, "start": start, "reopen": start + timedelta(days=days)}
     return _analyze(conn, rows, [], disruption)

@@ -76,7 +76,7 @@ streamlit run app.py
 ```
 
 The Relate store is committed in `data/ripple.relate`: nothing to start or load. For the LLM mode,
-`cp .env.example .env` and add a free Groq key. Tests: `python -m pytest` (151 tests, run in CI on
+`cp .env.example .env` and add a free Groq key. Tests: `python -m pytest` (152 tests, run in CI on
 Python 3.12 and 3.13 with a lint step and a check that the committed store matches the generator).
 
 ## Try these
@@ -187,6 +187,29 @@ Register it in any MCP client (a `.mcp.json` is included for Claude Code):
 `compare_with_plain_rag`, `risk_radar`, `recall_analyses`, `list_plans`, `search_alerts`,
 `get_schema`, `read_cypher`. Each impacted shipment comes with its `path`, so the calling agent can
 explain its answer too.
+
+Relate's own MCP server also serves the same store, read-only (`read_cypher` with a `statement`
+argument, and `get_schema`; writes are refused). It needs the
+[`relate` CLI](https://relatedb.ai/docs/get-started/install/):
+
+```json
+{ "mcpServers": { "relate": { "command": "relate",
+  "args": ["serve", "--mcp", "stdio", "--database", "data/ripple.relate", "--read-only"] } } }
+```
+</details>
+
+<details>
+<summary><b>Explore the graph yourself with the Relate CLI</b></summary>
+
+The committed store opens with Relate's CLI too (tested with v1.1.0, read-only, so it stays
+unchanged):
+
+```bash
+relate --database data/ripple.relate --read-only --mode table \
+  "MATCH (p:Port {name: 'Rotterdam'})<-[:CALLS_AT]-(r:Route)<-[:SAILS]-(v:Vessel)
+   RETURN r.name AS route, count(v) AS vessels ORDER BY vessels DESC"
+relate query --database data/ripple.relate --read-only     # interactive shell
+```
 </details>
 
 <details>
@@ -220,7 +243,7 @@ ripple/evaluate.py     retrieval scores on 33 questions
 ripple/viz.py          static and interactive graph drawings
 ripple/mcp_server.py   MCP tools
 app.py                 Streamlit UI
-tests/                 151 tests
+tests/                 152 tests
 ```
 </details>
 

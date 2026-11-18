@@ -13,7 +13,9 @@ The store is opened read-only: no tool can modify the graph.
 
 import json
 
+import relate
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 
 from . import agent, db, queries, retrieval
 
@@ -26,6 +28,10 @@ server = MCPServer(
         "know the port or vessel. Each impacted shipment comes with `path`, the chain of "
         "relationships from the disruption to the customer: quote it when you explain."),
 )
+
+# Errors the caller can fix (unknown port, bad Cypher...) are raised as
+# ToolError so the agent sees the message; other exceptions would only show
+# "Error executing tool".
 
 IMPACT_FIELDS = ("shipment", "customer", "tier", "priority", "delay_days", "eta", "new_eta",
                  "sla_breached", "score", "reason", "vessel", "route", "origin", "destination",
@@ -56,7 +62,7 @@ def find_port(conn, port: str) -> str:
         {"x": port.strip()}).fetchone()
     if row is None:
         names = [r["name"] for r in conn.execute("MATCH (p:Port) RETURN p.name AS name ORDER BY name")]
-        raise ValueError(f"Unknown port '{port}'. Ports in the graph: {', '.join(names)}")
+        raise ToolError(f"Unknown port '{port}'. Ports in the graph: {', '.join(names)}")
     return row["code"]
 
 
@@ -65,7 +71,7 @@ def find_vessel(conn, vessel: str) -> str:
         "MATCH (v:Vessel) WHERE toLower(v.name) = toLower($x) OR v.imo = toUpper($x) RETURN v.imo AS imo",
         {"x": vessel.strip()}).fetchone()
     if row is None:
-        raise ValueError(f"Unknown vessel '{vessel}'. Find names with read_cypher: "
+        raise ToolError(f"Unknown vessel '{vessel}'. Find names with read_cypher: "
                          "MATCH (v:Vessel) RETURN v.name LIMIT 50")
     return row["imo"]
 
@@ -156,6 +162,8 @@ def read_cypher(query: str, limit: int = 50) -> dict:
         cursor = conn.execute(query)
         rows = [row.data() for row in cursor.fetchmany(max(1, min(limit, 200)))]
         truncated = cursor.fetchone() is not None
+    except relate.Error as error:  # syntax error, write on a read-only store...
+        raise ToolError(f"Cypher error: {error}") from error
     finally:
         conn.close()
     return plain({"rows": rows, "truncated": truncated})

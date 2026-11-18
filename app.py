@@ -5,6 +5,8 @@ ranked list of impacted shipments, and for each one the graph path that
 explains it. No analysis logic lives here.
 """
 
+import os
+
 import pandas as pd
 import streamlit as st
 
@@ -22,6 +24,15 @@ COLORS = {"Port": "#E4572E", "Route": "#F3A712", "Vessel": "#4C9F70",
           "Shipment": "#3A7CA5", "Customer": "#7B5EA7"}
 
 st.set_page_config(page_title="Ripple", page_icon="🌊", layout="wide")
+
+# On Streamlit Community Cloud the API keys come from the app's Secrets
+# instead of a .env file. Without any key the app runs in rule-based mode.
+try:
+    for name in ("GROQ_API_KEY", "MISTRAL_API_KEY", "RIPPLE_LLM_PROVIDER"):
+        if name in st.secrets:
+            os.environ.setdefault(name, str(st.secrets[name]))
+except Exception:  # no secrets file at all: nothing to copy
+    pass
 
 
 def run_agent(question: str, use_llm: bool) -> dict:

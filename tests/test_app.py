@@ -65,3 +65,16 @@ def test_mitigation_tab_shows_before_and_after():
     assert any(m.label == "Value protected" for m in page.metric)
     page.selectbox(key="fallback-0").set_value("BEANR").run()
     assert not page.exception
+
+
+def test_keys_from_streamlit_secrets_reach_the_environment(monkeypatch, tmp_path):
+    secrets = tmp_path / ".streamlit" / "secrets.toml"
+    secrets.parent.mkdir()
+    secrets.write_text('GROQ_API_KEY = "test-key-from-secrets"\n')
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path)  # Streamlit reads .streamlit/secrets.toml from here
+    page = AppTest.from_file(APP, default_timeout=60)
+    page.run()
+    assert not page.exception
+    import os
+    assert os.environ.get("GROQ_API_KEY") == "test-key-from-secrets"

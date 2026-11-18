@@ -145,3 +145,30 @@ def test_ripple_follows_several_supplier_tiers(conn):
         assert r["path_nodes"][-1]["name"] == r["customer"]
     breached = {r["shipment"] for r in result["impacted"] if r["sla_breached"]}
     assert {r["via_shipment"] for r in result["downstream"]} <= breached
+
+
+def test_drawings_keep_the_direction_stored_in_the_graph(conn):
+    import json
+    from ripple import viz
+    row = queries.port_closure(conn, "NLRTM", 3)["impacted"][0]
+    route, port = row["path_nodes"][1]["name"], row["path_nodes"][0]["name"]
+    dot = viz.path_to_dot([(row["path_nodes"], row["path_rels"])])
+    assert 'dir=back' in dot  # Rotterdam <-[CALLS_AT]- route: drawn left to right, arrow back
+    html = viz.path_to_vis_html([(row["path_nodes"], row["path_rels"])])
+    data = json.loads(html.split("const data = ")[1].split(";\n")[0])
+    calls_at = next(e for e in data["edges"] if e["label"] == "CALLS_AT")
+    assert calls_at["from"] == f"Route:{route}" and calls_at["to"] == f"Port:{port}"
+    assert {n["level"] for n in data["nodes"]} == {0, 1, 2, 3, 4}
+
+
+def test_interactive_graph_puts_ripple_paths_after_their_shipment(conn):
+    import json
+    from ripple import viz
+    result = queries.port_closure(conn, "NLRTM", 3)
+    ripple = next(r for r in result["downstream"] if r["supplier_hops"] == 2)
+    impact = next(r for r in result["impacted"] if r["shipment"] == ripple["via_shipment"])
+    html = viz.path_to_vis_html([(impact["path_nodes"], impact["path_rels"]),
+                                 (ripple["path_nodes"], ripple["path_rels"])])
+    levels = {n["id"]: n["level"] for n in json.loads(html.split("const data = ")[1].split(";\n")[0])["nodes"]}
+    assert levels[f"Shipment:{impact['shipment']}"] == 3
+    assert levels[f"Customer:{ripple['customer']}"] == 3 + 3  # shipment -> customer -> supplier -> buyer

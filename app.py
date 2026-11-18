@@ -13,8 +13,9 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
-from ripple import agent, db, llm, mitigation, plain_rag, queries
+from ripple import agent, db, llm, mitigation, plain_rag, queries, viz
 from ripple.generate import SCENARIO_DATE
 
 EXAMPLES = [
@@ -24,9 +25,7 @@ EXAMPLES = [
     "A ship is stuck at the entrance of the Suez canal for a week",
     "MV Silver Spirit is out of service for 4 days",
 ]
-# One colour per node label, reused in every graph drawing.
-COLORS = {"Port": "#E4572E", "Route": "#F3A712", "Vessel": "#4C9F70",
-          "Shipment": "#3A7CA5", "Customer": "#7B5EA7"}
+COLORS = viz.COLORS
 
 ASSETS = Path(__file__).resolve().parent / "assets"
 st.set_page_config(page_title="Ripple", page_icon=str(ASSETS / "logo.png"), layout="wide")
@@ -115,33 +114,6 @@ def graph_stats() -> dict:
     return {"nodes": nodes, "relationships": rels}
 
 
-def path_to_dot(paths: list, horizontal: bool = True) -> str:
-    """Draw one or several paths as a Graphviz diagram. Nodes shared by
-    several paths (the port, a vessel...) are drawn once, so the fan-out
-    from the disruption to the customers becomes visible."""
-    lines = ["digraph {", f"rankdir={'LR' if horizontal else 'TB'};", 'bgcolor="transparent";',
-             'node [style="filled,rounded", shape=box, fontname="Helvetica", fontsize=11, '
-             'fontcolor=white, color="#00000000"];',
-             'edge [fontname="Helvetica", fontsize=9, color="#888888", fontcolor="#888888"];']
-    seen_nodes, seen_edges = set(), set()
-    for nodes, rels in paths:
-        for node in nodes:
-            key = f"{node['label']}:{node['name']}"
-            if key not in seen_nodes:
-                seen_nodes.add(key)
-                lines.append(f'"{key}" [label="{node["name"]}", fillcolor="{COLORS[node["label"]]}"];')
-        for i, rel in enumerate(rels):
-            a = f"{nodes[i]['label']}:{nodes[i]['name']}"
-            b = f"{nodes[i + 1]['label']}:{nodes[i + 1]['name']}"
-            if (a, b) not in seen_edges:
-                seen_edges.add((a, b))
-                # Lay the nodes out in the order the agent walked them, but
-                # point the arrowhead the way the relationship is stored.
-                direction = "forward" if rel["forward"] else "back"
-                lines.append(f'"{a}" -> "{b}" [label="{rel["type"]}", dir={direction}];')
-    return "\n".join(lines + ["}"])
-
-
 def show_result(result: dict, key: str) -> None:
     d, s = result["disruption"], result["summary"]
     what = "closed" if d["kind"] == "port_closure" else "out of service"
@@ -178,7 +150,7 @@ def show_result(result: dict, key: str) -> None:
         choice = st.selectbox("Shipment", range(len(impacted)), format_func=lambda i: labels[i],
                               key=f"pick-{key}", label_visibility="collapsed")
         row = impacted[choice]
-        st.graphviz_chart(path_to_dot([(row["path_nodes"], row["path_rels"])]))
+        st.graphviz_chart(viz.path_to_dot([(row["path_nodes"], row["path_rels"])]))
         st.code(row["path"], language=None)
         left, right = st.columns(2)
         left.markdown(
@@ -205,7 +177,11 @@ def show_result(result: dict, key: str) -> None:
         ids = {r["shipment"] for r in shown}
         paths = [(r["path_nodes"], r["path_rels"]) for r in shown]
         paths += [(r["path_nodes"], r["path_rels"]) for r in result["downstream"] if r["via_shipment"] in ids]
-        st.graphviz_chart(path_to_dot(paths), width="stretch")
+        if st.toggle("Interactive view (drag, zoom, click a node)", value=True, key=f"vis-{key}",
+                     help="Loads the vis-network library from a CDN; turn off to work offline."):
+            components.html(viz.path_to_vis_html(paths), height=560)
+        else:
+            st.graphviz_chart(viz.path_to_dot(paths), width="stretch")
         legend = " &nbsp; ".join(f'<span style="color:{color}">&#9632;</span> {label}'
                                  for label, color in COLORS.items())
         st.markdown(f"One disruption on the left, every customer it reaches on the right. "

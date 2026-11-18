@@ -114,3 +114,4 @@ def test_follow_up_in_the_ui():
     assert not page.exception
     assert any("Follow-up of" in c.value for c in page.caption)
     assert page.subheader[0].value == "Rotterdam closed for 7 days"
+

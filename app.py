@@ -26,7 +26,7 @@ COLORS = {"Port": "#E4572E", "Route": "#F3A712", "Vessel": "#4C9F70",
           "Shipment": "#3A7CA5", "Customer": "#7B5EA7"}
 
 ASSETS = Path(__file__).resolve().parent / "assets"
-st.set_page_config(page_title="Ripple", page_icon=str(ASSETS / "icon.png"), layout="wide")
+st.set_page_config(page_title="Ripple", page_icon=str(ASSETS / "logo.png"), layout="wide")
 
 # On Streamlit Community Cloud the API keys come from the app's Secrets
 # instead of a .env file. Without any key the app runs in rule-based mode.

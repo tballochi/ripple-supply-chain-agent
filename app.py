@@ -38,7 +38,11 @@ except Exception:  # no secrets file at all: nothing to copy
     pass
 
 
+@st.cache_data(max_entries=50, show_spinner=False)
 def run_agent(question: str, use_llm: bool) -> dict:
+    # Cached per question: Streamlit re-runs the whole page on every click
+    # (picking a fallback port, moving a slider), and without the cache each
+    # click would call the LLM again and hit the free tier's rate limit.
     # A Relate connection belongs to the thread that opened it, and Streamlit
     # may run each interaction on a different thread: open one per question.
     conn = db.connect()

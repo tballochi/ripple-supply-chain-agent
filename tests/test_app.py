@@ -78,3 +78,16 @@ def test_keys_from_streamlit_secrets_reach_the_environment(monkeypatch, tmp_path
     assert not page.exception
     import os
     assert os.environ.get("GROQ_API_KEY") == "test-key-from-secrets"
+
+
+def test_interactions_do_not_rerun_the_agent(monkeypatch):
+    from ripple import agent
+    calls = []
+    real_answer = agent.answer
+    monkeypatch.setattr(agent, "answer", lambda *a, **k: calls.append(1) or real_answer(*a, **k))
+    page = AppTest.from_file(APP, default_timeout=60)
+    page.session_state["question"] = "Port of Antwerp closed for 3 days"
+    page.run()
+    page.selectbox(key="fallback-0").set_value(page.selectbox(key="fallback-0").options[-1]).run()
+    page.select_slider[0].set_value(20).run()
+    assert not page.exception and len(calls) == 1

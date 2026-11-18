@@ -5,7 +5,7 @@
 ### Inspiration
 When a port closes, the first question is never "what do the news say about Rotterdam?" but
 "whose goods are on which ship, and who is waiting for them?". The answer is three to six hops
-away from the event: a graph question, and a perfect test for connected context.
+away from the event: a graph question, and the test of connected context.
 
 ### What it does
 Ripple takes a disruption in plain English ("Port of Rotterdam closed for 3 days", "the

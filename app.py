@@ -8,7 +8,7 @@ explains it. No analysis logic lives here.
 import pandas as pd
 import streamlit as st
 
-from ripple import agent, db, llm
+from ripple import agent, db, llm, plain_rag
 
 EXAMPLES = [
     "Port of Rotterdam closed for 3 days",
@@ -32,6 +32,42 @@ def run_agent(question: str, use_llm: bool) -> dict:
         return agent.answer(conn, question, use_llm=use_llm)
     finally:
         conn.close()
+
+
+def run_comparison(question: str, results: list, k: int) -> dict:
+    conn = db.connect()
+    try:
+        return plain_rag.compare(conn, question, results, k)
+    finally:
+        conn.close()
+
+
+def show_comparison(question: str, results: list) -> None:
+    st.markdown("Same data, same question. **Plain RAG** turns every record (shipments, vessels, "
+                "routes, customers, ports, news) into a text document and retrieves the closest "
+                "ones with the same word + meaning search. **Ripple** walks the relationships.")
+    k = st.select_slider("Documents plain RAG retrieves (top k)", [5, 10, 20, 50], value=10)
+    cmp = run_comparison(question, results, k)
+    g, r = cmp["graph"], cmp["plain_rag"]
+    st.dataframe(pd.DataFrame([
+        {"": "Delayed shipments found", "Ripple (graph)": g["shipments"], "Plain RAG": r["shipments_found"]},
+        {"": "Shipments named but not delayed", "Ripple (graph)": 0, "Plain RAG": r["shipments_wrong"]},
+        {"": "Affected customers found", "Ripple (graph)": g["customers"], "Plain RAG": r["customers_found"]},
+        {"": "Second-order customers found", "Ripple (graph)": g["second_order_customers"],
+         "Plain RAG": r["second_order_found"]},
+        {"": "Answers explained by a path", "Ripple (graph)": g["paths"], "Plain RAG": r["paths"]},
+    ]), hide_index=True, width="stretch")
+    missed = cmp["missed_shipments"]
+    if missed:
+        by_id = {row["shipment"]: row for res in results for row in res["impacted"]}
+        example = by_id[missed[0]]
+        st.markdown(f"**Missed by plain RAG ({len(missed)}):** for example {example['shipment']} "
+                    f"for {example['customer']}. No single document links it to the disruption; "
+                    "the graph does, in several hops:")
+        st.code(example["path"], language=None)
+    with st.expander(f"The {k} documents plain RAG retrieved ({cmp['mode']} search)"):
+        for d in cmp["documents"]:
+            st.markdown(f"- `{d['kind']}` {d['text']}")
 
 
 @st.cache_data
@@ -208,9 +244,15 @@ if question:
                 "Alert": a["text"], "Mentions": ", ".join(p["name"] for p in a["ports"]),
             } for a in alerts]), hide_index=True, width="stretch")
 
-    for index, result in enumerate(out["results"]):
-        st.divider()
-        show_result(result, key=str(index))
+    if out["results"]:
+        tab_impact, tab_compare = st.tabs(["Impact", "Graph vs plain RAG"])
+        with tab_impact:
+            for index, result in enumerate(out["results"]):
+                if index:
+                    st.divider()
+                show_result(result, key=str(index))
+        with tab_compare:
+            show_comparison(question, out["results"])
 else:
     st.markdown("Ask about a port, a vessel, a country, or an incident from the news. "
                 "Ripple finds every shipment and customer affected, several hops away, "

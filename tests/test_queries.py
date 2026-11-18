@@ -114,3 +114,10 @@ def test_reason_tells_on_board_from_not_loaded_yet(conn):
     for r in rows:
         loaded_before = seq[(r["route_id"], shipments[r["shipment"]]["origin"])] < seq[(r["route_id"], "NLRTM")]
         assert r["reason"] == (queries.ON_BOARD if loaded_before else queries.NOT_LOADED)
+
+
+def test_second_order_count_excludes_directly_hit_customers(conn):
+    result = queries.port_closure(conn, "NLRTM", 3)
+    direct = {r["customer_id"] for r in result["impacted"]}
+    only_downstream = {r["customer_id"] for r in result["downstream"]} - direct
+    assert result["summary"]["downstream_customers"] == len(only_downstream) > 0

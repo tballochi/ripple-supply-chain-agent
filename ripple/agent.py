@@ -141,8 +141,10 @@ def explain_with_rules(results: list, plan: dict) -> str:
             f"{top['priority']} priority), {top['delay_days']} days late ({top['reason']}). "
             f"New ETA {top['new_eta']} instead of {top['eta']}.")
         lines.append(f"Path followed: `{top['path']}`")
-        if result["downstream"]:
-            first = result["downstream"][0]
+        direct = {r["customer_id"] for r in result["impacted"]}
+        only_downstream = [r for r in result["downstream"] if r["customer_id"] not in direct]
+        if only_downstream:
+            first = only_downstream[0]
             lines.append(
                 f"Second-order effect: {s['downstream_customers']} more customer(s) depend on a "
                 f"manufacturer whose inputs are late, for example `{first['path']}`.")

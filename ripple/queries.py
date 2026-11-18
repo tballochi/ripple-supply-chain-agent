@@ -154,7 +154,9 @@ def _analyze(conn, impact_rows: list, alternatives: list, disruption: dict) -> d
             "sla_breaches": sum(r["sla_breached"] for r in impacted),
             "value_at_risk_usd": sum(r["value_usd"] for r in impacted),
             "max_delay_days": max((r["delay_days"] for r in impacted), default=0),
-            "downstream_customers": len({r["customer_id"] for r in downstream}),
+            # Customers reached ONLY through a late manufacturer (not directly hit).
+            "downstream_customers": len({r["customer_id"] for r in downstream}
+                                        - {r["customer_id"] for r in impacted}),
         },
         "impacted": impacted,
         "downstream": downstream,

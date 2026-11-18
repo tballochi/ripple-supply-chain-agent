@@ -163,6 +163,7 @@ def compare(conn, question: str, results: list, k: int = 10) -> dict:
 
     graph_shipments = {r["shipment"] for res in results for r in res["impacted"]}
     graph_customers = {r["customer_id"] for res in results for r in res["impacted"]}
+    # Same definition as summary["downstream_customers"]: reached only via SUPPLIES.
     second_order = {r["customer_id"] for res in results for r in res["downstream"]} - graph_customers
     return {
         "question": question, "k": k, "mode": found["mode"], "documents": docs,

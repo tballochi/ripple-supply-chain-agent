@@ -122,6 +122,21 @@ def vessel_outage_impact(vessel: str, days: int = 3, limit: int = 10) -> dict:
 
 
 @server.tool()
+def compare_with_plain_rag(question: str, k: int = 10) -> dict:
+    """Answer the same question two ways and compare: Ripple's graph walk versus plain RAG
+    (top-k hybrid search over every record written as a text document, no relationships
+    followed). Returns how many delayed shipments, affected customers and second-order
+    customers each one finds, and the documents plain RAG retrieved."""
+    conn = db.connect()
+    try:
+        out = agent.compare_with_plain_rag(conn, question, max(1, min(k, 50)))
+    finally:
+        conn.close()
+    out["documents"] = [{"kind": d["kind"], "text": d["text"]} for d in out["documents"]]
+    return plain(out)
+
+
+@server.tool()
 def search_alerts(text: str, limit: int = 5) -> dict:
     """Hybrid search (full-text + vector, fused by reciprocal rank) over the news alerts.
     Returns the best alerts with the ports each one mentions in the graph."""

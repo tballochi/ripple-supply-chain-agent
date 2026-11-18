@@ -101,3 +101,12 @@ def test_explanation_splits_on_board_and_not_loaded(conn):
     assert 0 < on_board < len(impacted)
     assert f"{on_board} are already on board" in out["explanation"]
     assert f"{len(impacted) - on_board} are not loaded yet" in out["explanation"]
+
+
+def test_second_order_example_is_not_a_directly_hit_customer(conn):
+    out = agent.answer(conn, "Port of Rotterdam closed for 3 days", use_llm=False)
+    result = out["results"][0]
+    direct = {r["customer"] for r in result["impacted"]}
+    line = next(l for l in out["explanation"].split("\n") if l.startswith("Second-order"))
+    example_customer = line.split("-[SUPPLIES]-> ")[1].split("`")[0]
+    assert example_customer not in direct

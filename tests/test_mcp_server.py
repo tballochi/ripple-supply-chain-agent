@@ -47,3 +47,9 @@ def test_errors_reach_the_caller_with_a_message(call):
     with pytest.raises(ToolError) as error:
         call()
     assert str(error.value)
+
+
+def test_compare_with_plain_rag_tool():
+    out = mcp_server.compare_with_plain_rag("Port of Rotterdam closed for 3 days", k=10)
+    assert out["graph"]["shipments"] > out["plain_rag"]["shipments_found"]
+    assert len(out["documents"]) == 10

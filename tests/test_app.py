@@ -51,3 +51,9 @@ def test_port_closure_page_shows_the_impact():
 ])
 def test_other_pages_render(question):
     render(question)
+
+
+def test_comparison_tab_renders():
+    page = render("Port of Rotterdam closed for 3 days")
+    assert {"Impact", "Graph vs plain RAG"} <= {t.label for t in page.tabs}
+    assert any("Plain RAG" in str(df.value.columns.tolist()) for df in page.dataframe)

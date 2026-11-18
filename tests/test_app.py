@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from ripple import db, queries
+
 APP = str(Path(__file__).resolve().parent.parent / "app.py")
 
 
@@ -29,15 +31,21 @@ def test_empty_page_renders():
 
 
 def test_port_closure_page_shows_the_impact():
+    conn = db.connect()
+    try:
+        expected = queries.port_closure(conn, "NLRTM", 3)["summary"]
+    finally:
+        conn.close()
     page = render("Port of Rotterdam closed for 3 days")
     metrics = {m.label: m.value for m in page.metric}
-    assert metrics["Shipments late"] == "16" and metrics["Second-order customers"] == "6"
+    assert metrics["Shipments late"] == str(expected["shipments"])
+    assert metrics["Second-order customers"] == str(expected["downstream_customers"])
 
 
 @pytest.mark.parametrize("question", [
     "MV Silver Spirit is out of service for 4 days",   # vessel: no alternatives tab content
-    "Port of Antwerp closed for 2 days",               # nothing impacted
-    "Port of Busan closed for 2 days",                 # very few shipments
+    "Port of Antwerp closed for 2 days",
+    "Port of Los Angeles closed for 1 day",            # very few shipments, no slider
     "ports in China closed for 2 days",                # several ports at once
     "who won the world cup",                           # nothing matched
 ])

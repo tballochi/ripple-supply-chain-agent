@@ -88,3 +88,17 @@ def test_vessel_outage(conn):
 def test_unknown_port_is_an_error(conn):
     with pytest.raises(ValueError):
         queries.port_closure(conn, "XXXXX", 3)
+
+
+DEMO_PORTS = {"NLRTM": "Rotterdam", "CNSHA": "Shanghai", "EGPSD": "Port Said", "KRPUS": "Busan"}
+
+
+def test_every_port_has_an_impact_for_a_three_day_closure(conn):
+    """Any port a judge types must give a real answer, not an empty list."""
+    codes = [r["code"] for r in conn.execute("MATCH (p:Port) RETURN p.code AS code ORDER BY code")]
+    assert len(codes) == 30
+    counts = {code: queries.port_closure(conn, code, 3)["summary"]["shipments"] for code in codes}
+    too_small = {code: n for code, n in counts.items() if n < 3}
+    assert not too_small, f"ports with fewer than 3 impacted shipments: {too_small}"
+    for code, name in DEMO_PORTS.items():
+        assert counts[code] >= 10, f"demo port {name} has only {counts[code]} impacted shipments"

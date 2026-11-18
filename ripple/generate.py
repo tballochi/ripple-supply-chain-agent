@@ -25,7 +25,13 @@ SCENARIO_DATE = date(2026, 12, 1)
 N_VESSELS = 40
 N_SHIPMENTS = 200
 N_CUSTOMERS = 60
-NEAR_KM = 1500  # two ports closer than this can stand in for each other
+NEAR_KM = 1500
+# Shipments booked on each scheduled vessel through its scheduled port.
+SHIPMENTS_PER_SCHEDULED_VESSEL = 3
+# Major hubs see more traffic: two scheduled vessels instead of one, and
+# more cargo through the hub on each.
+HUBS = {"CNSHA", "SGSIN", "KRPUS", "EGPSD", "NLRTM"}
+SHIPMENTS_PER_HUB_VESSEL = 5  # two ports closer than this can stand in for each other
 
 # code, name, country, region, latitude, longitude
 PORTS = [
@@ -204,21 +210,38 @@ def build_dataset() -> dict:
             calls.append(dict(route=rid, port=code, seq=seq + 1, day=day))
         routes.append(dict(id=rid, name=name, transit_days=day))
 
-    # Vessels: every route gets at least two, the rest are spread at random.
+    # Vessels, in two groups:
+    # 1. One "scheduled" vessel per port (two for hubs), due there between
+    #    SCENARIO_DATE and two days later. So a closure of any port in early
+    #    December always hits something, and every what-if question has an
+    #    answer. It sails the route calling at that port with the fewest
+    #    vessels so far.
+    # 2. The remaining vessels: routes still without a vessel first, then
+    #    random routes, with a random voyage start.
     route_ids = [r[0] for r in ROUTES]
-    assigned = route_ids * 2 + [rng.choice(route_ids) for _ in range(N_VESSELS - 2 * len(route_ids))]
-    names = rng.sample([f"MV {a} {b}" for a in VESSEL_WORDS_A for b in VESSEL_WORDS_B], N_VESSELS)
     stops_of = {rid: stops for rid, _, stops in ROUTES}
     transit = {r["id"]: r["transit_days"] for r in routes}
-    vessels = []
-    for i, (rid, name) in enumerate(zip(assigned, names)):
+    names = rng.sample([f"MV {a} {b}" for a in VESSEL_WORDS_A for b in VESSEL_WORDS_B], N_VESSELS)
+    fleet = {rid: 0 for rid in route_ids}  # vessels per route so far
+    plan = []  # (route, voyage start, port the vessel is scheduled for)
+    for code in [c for c, *_ in PORTS] + [c for c, *_ in PORTS if c in HUBS]:
+        rid = min((r for r in route_ids if code in stops_of[r]), key=lambda r: (fleet[r], r))
+        arrival = SCENARIO_DATE + timedelta(days=rng.randint(0, 2))
+        plan.append((rid, arrival - timedelta(days=day_at[(rid, code)]), code))
+        fleet[rid] += 1
+    while len(plan) < N_VESSELS:
+        empty = [r for r in route_ids if fleet[r] == 0]
+        rid = empty[0] if empty else rng.choice(route_ids)
         # Most voyages started some days ago, so on SCENARIO_DATE the vessel is
-        # mid-route. A negative value means the voyage starts in the coming
-        # days, so first ports of call (Shanghai, ...) also have arrivals ahead.
+        # mid-route. A negative value means the voyage starts in the coming days.
         started = SCENARIO_DATE - timedelta(days=rng.randint(-6, max(3, transit[rid] - 3)))
+        plan.append((rid, started, None))
+        fleet[rid] += 1
+    vessels = []
+    for i, ((rid, started, scheduled_port), name) in enumerate(zip(plan, names)):
         vessels.append(dict(imo=f"IMO{9300000 + i * 137}", name=name, route=rid,
                             capacity_teu=rng.choice([4000, 8000, 12000, 16000, 20000]),
-                            voyage_start=started))
+                            voyage_start=started, scheduled_port=scheduled_port))
 
     products = [dict(sku=s, name=n, category=c) for s, n, c in PRODUCTS]
     inputs = [p["sku"] for p in products if p["category"] in INPUT_CATEGORIES]
@@ -244,13 +267,29 @@ def build_dataset() -> dict:
     # late, those buyers are exposed too. This is the second-order "ripple".
     supplies = [dict(a=m, b=b) for m in makers for b in rng.sample(buyers, rng.randint(1, 3))]
 
-    # Shipments: each one travels on a vessel between two calls of its route.
-    shipments, contains = [], []
-    for i in range(N_SHIPMENTS):
+    # Shipments: each one travels on a vessel between two calls of its route
+    # (origin index o, destination index d, with o < d).
+    # The first ones are booked on the scheduled vessels, on legs that pass
+    # through the vessel's scheduled port; the rest are fully random.
+    legs = []
+    for v in vessels:
+        if v["scheduled_port"]:
+            stops = stops_of[v["route"]]
+            k = stops.index(v["scheduled_port"])
+            count = SHIPMENTS_PER_HUB_VESSEL if v["scheduled_port"] in HUBS else SHIPMENTS_PER_SCHEDULED_VESSEL
+            for _ in range(count):
+                o = rng.randint(0, k if k < len(stops) - 1 else k - 1)
+                d = rng.randint(max(k, o + 1), len(stops) - 1)
+                legs.append((v, o, d))
+    while len(legs) < N_SHIPMENTS:
         v = rng.choice(vessels)
         stops = stops_of[v["route"]]
         o = rng.randrange(len(stops) - 1)
-        d = rng.randrange(o + 1, len(stops))
+        legs.append((v, o, rng.randrange(o + 1, len(stops))))
+
+    shipments, contains = [], []
+    for i, (v, o, d) in enumerate(legs):
+        stops = stops_of[v["route"]]
         departure = v["voyage_start"] + timedelta(days=day_at[(v["route"], stops[o])])
         eta = v["voyage_start"] + timedelta(days=day_at[(v["route"], stops[d])])
         if eta < SCENARIO_DATE:

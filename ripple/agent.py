@@ -28,7 +28,7 @@ import re
 import sys
 from datetime import date
 
-from . import db, llm, lookup, mitigation, plain_rag, queries, retrieval
+from . import db, llm, lookup, mitigation, plain_rag, queries, retrieval, workspace
 from .generate import SCENARIO_DATE
 
 DEFAULT_DAYS = 3
@@ -316,10 +316,13 @@ def llm_reason(error: Exception) -> str:
     return str(error) if isinstance(error, (llm.LLMError, ValueError)) else type(error).__name__
 
 
-def answer(conn, question: str, use_llm: bool | None = None, previous: dict | None = None) -> dict:
+def answer(conn, question: str, use_llm: bool | None = None, previous: dict | None = None,
+           remember: bool = False) -> dict:
     """Run the three steps. `use_llm=None` means: use the LLM if a key is set.
     `previous` is the last exchange, {"question": ..., "plan": ...}, so that a
-    follow-up such as "and if it lasts a week?" can reuse its plan."""
+    follow-up such as "and if it lasts a week?" can reuse its plan.
+    `remember=True` recalls earlier analyses of the same ports or vessels from
+    the workspace graph, then records this one (ripple/workspace.py)."""
     use_llm = llm.available() if use_llm is None else (use_llm and llm.available())
     steps = []  # a readable trace of what the agent did, shown in the UI
 
@@ -393,9 +396,20 @@ def answer(conn, question: str, use_llm: bool | None = None, previous: dict | No
             explanation = explain_with_rules(results, plan)
     steps.append(f"Explanation written by: {explained_by}")
 
-    return {"question": question, "planned_by": planned_by, "explained_by": explained_by,
-            "plan": plan, "retrieval": found, "results": results, "data_answer": data_answer,
-            "explanation": explanation, "steps": steps}
+    out = {"question": question, "planned_by": planned_by, "explained_by": explained_by,
+           "plan": plan, "retrieval": found, "results": results, "data_answer": data_answer,
+           "explanation": explanation, "steps": steps, "earlier": []}
+    if remember and results:
+        try:
+            out["earlier"] = workspace.recall(plan["ports"], plan["vessels"])
+            if out["earlier"]:
+                out["explanation"] += "\n\n**Earlier analyses** (from the agent's memory): " + "; ".join(
+                    f"“{e['question']}”: {e['shipments']} shipments late" for e in out["earlier"][:3]) + "."
+            workspace.record_episode(out)
+            steps.append(f"Memory: {len(out['earlier'])} earlier analysis(es) recalled, this one recorded")
+        except Exception as error:  # memory must never break an answer
+            steps.append(f"Memory unavailable ({type(error).__name__})")
+    return out
 
 
 def compare_with_plain_rag(conn, question: str, k: int = 10) -> dict:

@@ -7,3 +7,6 @@ __pycache__/
 # Relate runtime marker files (empty, recreated on open). Everything else in
 # data/ripple.relate/ is needed to open the store and is committed.
 .cypherlite.writer
+
+# Writable copy of the graph for plans and the agent memory (ripple/workspace.py)
+.ripple/

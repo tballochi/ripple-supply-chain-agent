@@ -163,3 +163,25 @@ def test_parse_start(text, expected):
 def test_start_date_reaches_the_query(conn):
     out = agent.answer(conn, "Port of Rotterdam closed for 3 days from 2026-12-03", use_llm=False)
     assert out["results"][0]["disruption"]["start"].isoformat() == "2026-12-03"
+
+
+def test_follow_up_questions_reuse_the_previous_plan(conn):
+    first = agent.answer(conn, "Port of Rotterdam closed for 3 days", use_llm=False)
+    longer = agent.answer(conn, "and if it lasts a week?", use_llm=False,
+                          previous={"question": first["question"], "plan": first["plan"]})
+    assert longer["plan"]["ports"] == ["NLRTM"] and longer["plan"]["days"] == 7
+    assert longer["planned_by"] == "follow-up rules" and "Following up on" in longer["explanation"]
+    other = agent.answer(conn, "what about Antwerp instead?", use_llm=False,
+                         previous={"question": longer["question"], "plan": longer["plan"]})
+    assert other["plan"]["ports"] == ["BEANR"] and other["plan"]["days"] == 7
+    both = agent.answer(conn, "and Hamburg too?", use_llm=False,
+                        previous={"question": other["question"], "plan": other["plan"]})
+    assert both["plan"]["ports"] == ["BEANR", "DEHAM"]
+
+
+def test_a_new_question_is_not_a_follow_up(conn):
+    first = agent.answer(conn, "Port of Rotterdam closed for 3 days", use_llm=False)
+    fresh = agent.answer(conn, "Typhoon near Shanghai", use_llm=False,
+                         previous={"question": first["question"], "plan": first["plan"]})
+    assert fresh["plan"]["ports"] == ["CNSHA"] and fresh["plan"]["days_assumed"]
+    assert "follow_up_of" not in fresh["plan"]

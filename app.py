@@ -6,6 +6,7 @@ explains it. No analysis logic lives here.
 """
 
 import base64
+import json
 import os
 from datetime import timedelta
 from pathlib import Path
@@ -41,7 +42,7 @@ except Exception:  # no secrets file at all: nothing to copy
 
 
 @st.cache_data(max_entries=50, show_spinner=False)
-def run_agent(question: str, use_llm: bool) -> dict:
+def run_agent(question: str, use_llm: bool, previous: str = "") -> dict:
     # Cached per question: Streamlit re-runs the whole page on every click
     # (picking a fallback port, moving a slider), and without the cache each
     # click would call the LLM again and hit the free tier's rate limit.
@@ -49,7 +50,8 @@ def run_agent(question: str, use_llm: bool) -> dict:
     # may run each interaction on a different thread: open one per question.
     conn = db.connect()
     try:
-        return agent.answer(conn, question, use_llm=use_llm)
+        return agent.answer(conn, question, use_llm=use_llm,
+                            previous=json.loads(previous) if previous else None)
     finally:
         conn.close()
 
@@ -304,10 +306,12 @@ with st.sidebar:
             if st.form_submit_button("Run scenario", width="stretch"):
                 what = f"Port of {target} closed" if kind == "Port closure" else f"{target} out of service"
                 st.session_state["question"] = f"{what} for {days} days from {start.isoformat()}"
+                st.session_state["history"] = []  # a new scenario, not a follow-up
     st.markdown("**Try an example**")
     for example in EXAMPLES:
         if st.button(example, width="stretch"):
             st.session_state["question"] = example
+            st.session_state["history"] = []
     stats = graph_stats()
     st.markdown("**The graph**")
     st.caption(" · ".join(f"{n} {label}s" for label, n in stats["nodes"].items())
@@ -319,12 +323,32 @@ st.header("What happens if...?")
 # A link like  /?q=Port+of+Rotterdam+closed  opens the page with an answer.
 if "question" not in st.session_state and st.query_params.get("q"):
     st.session_state["question"] = st.query_params["q"]
-question = st.text_input("Describe a disruption in plain English", key="question",
+question = st.text_input("Describe a disruption in plain English, then ask follow-ups "
+                         "(\"and if it lasts a week?\", \"what about Antwerp instead?\")", key="question",
                          placeholder="Port of Rotterdam closed for 3 days")
 
+def new_scenario() -> None:
+    st.session_state["history"] = []
+    st.session_state["question"] = ""
+
+
 if question:
+    # The conversation so far: a follow-up ("and if it lasts a week?") reuses
+    # the plan of the previous question.
+    history = st.session_state.setdefault("history", [])
+    if history and history[-1]["question"] == question:  # same question, page re-run
+        previous = history[-2] if len(history) > 1 else None
+    else:
+        previous = history[-1] if history else None
     with st.spinner("Walking the graph..."):
-        out = run_agent(question, use_llm)
+        out = run_agent(question, use_llm, json.dumps(previous, default=str) if previous else "")
+    if not history or history[-1]["question"] != question:
+        history.append({"question": question, "plan": json.loads(json.dumps(out["plan"], default=str))})
+
+    if out["plan"].get("follow_up_of"):
+        left, right = st.columns([4, 1])
+        left.caption(f"↪ Follow-up of “{out['plan']['follow_up_of']}”: same scenario, with what you changed.")
+        right.button("New scenario", on_click=new_scenario, width="stretch")
 
     st.markdown(out["explanation"])
     with st.expander("How the agent got there"):

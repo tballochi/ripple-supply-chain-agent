@@ -106,3 +106,11 @@ def test_scenario_builder_writes_and_runs_a_question():
     page.button[0].click().run()  # the form's "Run scenario" button
     assert page.session_state["question"] == "Port of Antwerp closed for 4 days from 2026-12-01"
     assert not page.exception and page.metric
+
+
+def test_follow_up_in_the_ui():
+    page = render("Port of Rotterdam closed for 3 days")
+    page.text_input(key="question").set_value("and if it lasts a week?").run()
+    assert not page.exception
+    assert any("Follow-up of" in c.value for c in page.caption)
+    assert page.subheader[0].value == "Rotterdam closed for 7 days"

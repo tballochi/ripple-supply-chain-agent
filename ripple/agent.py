@@ -87,6 +87,40 @@ def plan_with_rules(question: str, found: dict) -> dict:
     }
 
 
+# A follow-up refers to the previous question: "and if it lasts a week?",
+# "what about Antwerp instead?", "and Hamburg too?".
+FOLLOW_UP = re.compile(r"^\s*(and|what about|how about|what if|same|then)\b|\b(instead|too|also|as well|"
+                       r"longer|shorter|it lasts|that one|the same)\b", re.IGNORECASE)
+ADD_TO_PREVIOUS = re.compile(r"\b(too|also|as well|in addition)\b", re.IGNORECASE)
+
+
+def plan_follow_up(question: str, found: dict, previous: dict | None) -> dict | None:
+    """Plan for a follow-up question, built from the previous plan, or None
+    when the question stands on its own. Deterministic, so it also works
+    without an LLM."""
+    if not previous:
+        return None
+    named = bool(found["ports"] or found["vessels"] or found.get("area"))
+    days, start = parse_days(question), parse_start(question)
+    looks_like_follow_up = FOLLOW_UP.search(question) or (not named and (days or start))
+    if not looks_like_follow_up:
+        return None
+    before = previous["plan"]
+    ports = [p["code"] for p in found["ports"]]
+    vessels = [v["imo"] for v in found["vessels"]]
+    if not named:                              # "and if it lasts a week?": same target
+        ports, vessels = list(before["ports"]), list(before["vessels"])
+    elif ADD_TO_PREVIOUS.search(question):     # "and Hamburg too?": add to the target
+        ports = list(dict.fromkeys(before["ports"] + ports))
+        vessels = list(dict.fromkeys(before["vessels"] + vessels))
+    return {                                   # "what about Antwerp instead?": replace it
+        "ports": ports, "vessels": vessels,
+        "days": days or before["days"], "days_assumed": days is None and before["days_assumed"],
+        "start": start or date.fromisoformat(str(before["start"])),
+        "reasoning": None, "follow_up_of": previous["question"],
+    }
+
+
 PLAN_SYSTEM = """You are the planning step of a supply chain disruption agent.
 You do not answer the user. You choose which graph query to run.
 
@@ -213,6 +247,8 @@ def explain_with_rules(results: list, plan: dict) -> str:
             lines.append("No alternative port within range in the graph.")
         parts.append("\n\n".join(lines))
     text = "\n\n---\n\n".join(parts)
+    if plan.get("follow_up_of"):
+        text = f"_Following up on “{plan['follow_up_of']}”._\n\n" + text
     if plan["days_assumed"]:
         text += f"\n\n_No duration was given, so {plan['days']} days was assumed._"
     return text
@@ -280,8 +316,10 @@ def llm_reason(error: Exception) -> str:
     return str(error) if isinstance(error, (llm.LLMError, ValueError)) else type(error).__name__
 
 
-def answer(conn, question: str, use_llm: bool | None = None) -> dict:
-    """Run the three steps. `use_llm=None` means: use the LLM if a key is set."""
+def answer(conn, question: str, use_llm: bool | None = None, previous: dict | None = None) -> dict:
+    """Run the three steps. `use_llm=None` means: use the LLM if a key is set.
+    `previous` is the last exchange, {"question": ..., "plan": ...}, so that a
+    follow-up such as "and if it lasts a week?" can reuse its plan."""
     use_llm = llm.available() if use_llm is None else (use_llm and llm.available())
     steps = []  # a readable trace of what the agent did, shown in the UI
 
@@ -292,16 +330,19 @@ def answer(conn, question: str, use_llm: bool | None = None) -> dict:
                     or ", ".join(v["name"] for v in found["vessels"])
                     or (found.get("area") and f"area {found['area']['name']}, no port inside")
                     or "no entity matched"))
-    plan, planned_by = None, "rules"
-    if use_llm:
+    plan, planned_by = plan_follow_up(question, found, previous), "follow-up rules"
+    if plan:
+        steps.append(f"Follow-up of: {previous['question']}")
+    elif use_llm:
+        planned_by = "llm"
         try:
-            plan, planned_by = plan_with_llm(conn, question, found), "llm"
+            plan = plan_with_llm(conn, question, found)
         except Exception as error:
             steps.append(f"LLM planning failed ({llm_reason(error)}), using rules")
     if plan is None:
-        plan = plan_with_rules(question, found)
-    start = parse_start(question)
-    plan["start"] = start or SCENARIO_DATE  # the scenario's "today" unless a date is given
+        plan, planned_by = plan_with_rules(question, found), "rules"
+    if "start" not in plan:
+        plan["start"] = parse_start(question) or SCENARIO_DATE  # the scenario's "today" by default
     steps.append(f"Plan ({planned_by}): ports={plan['ports']} vessels={plan['vessels']} "
                  f"days={plan['days']}{' (assumed)' if plan['days_assumed'] else ''} from {plan['start']}")
 

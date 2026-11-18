@@ -138,10 +138,12 @@ def keywords(text: str) -> list[str]:
     return [w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOP_WORDS]
 
 
-def search_alerts(conn, text: str, top: int = 5, k: int = 20) -> dict:
-    """Hybrid search over alerts. Returns the mode used and the ranked alerts."""
-    words = keywords(text)
-    vectors = embeddings.embed([text])
+def search_alerts(conn, text: str, top: int = 5, k: int = 20,
+                  modes: tuple = ("vector", "fulltext")) -> dict:
+    """Hybrid search over alerts. Returns the mode used and the ranked alerts.
+    `modes` can switch one side off, to measure what each brings (evaluate.py)."""
+    words = keywords(text) if "fulltext" in modes else []
+    vectors = embeddings.embed([text]) if "vector" in modes else None
     branches, params = [], {"k": k, "top": top}
     if vectors:
         branches.append(VECTOR_BRANCH)
@@ -182,14 +184,14 @@ def ports_near(conn, lat: float, lon: float, radius_km: float) -> list[dict]:
     return [dict(r) for r in conn.execute(PORTS_NEAR_POINT, {"lat": lat, "lon": lon, "radius_km": radius_km})]
 
 
-def resolve(conn, text: str) -> dict:
+def resolve(conn, text: str, modes: tuple = ("vector", "fulltext")) -> dict:
     """Find what a disruption text refers to.
 
     Returns the ports and vessels it points at, how each was found, and the
     related alerts (shown to the user as supporting context).
     """
     lowered = text.lower()
-    found = search_alerts(conn, text)
+    found = search_alerts(conn, text, modes=modes) if modes else {"mode": "none", "alerts": []}
     alerts = found["alerts"]
 
     vessels = [dict(r) for r in conn.execute(VESSELS_BY_NAME, {"text": lowered})]

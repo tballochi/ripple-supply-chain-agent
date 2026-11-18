@@ -15,7 +15,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from ripple import agent, db, llm, mitigation, plain_rag, queries, radar, viz
+from ripple import agent, db, llm, mitigation, plain_rag, queries, radar, viz, workspace
 from ripple.generate import SCENARIO_DATE
 
 EXAMPLES = [
@@ -50,7 +50,7 @@ def run_agent(question: str, use_llm: bool, previous: str = "") -> dict:
     conn = db.connect()
     try:
         return agent.answer(conn, question, use_llm=use_llm,
-                            previous=json.loads(previous) if previous else None)
+                            previous=json.loads(previous) if previous else None, remember=True)
     finally:
         conn.close()
 
@@ -243,6 +243,12 @@ def show_mitigation(result: dict, key: str) -> None:
                 f"{sim['fallback']['name']}; extra distance: {sim['extra_sea_km']:,} km at sea and "
                 f"{sim['extra_road_km']:,} km by road or feeder. Before: {b['shipments_late']} late, "
                 f"{b['sla_breaches']} beyond tolerance.")
+    if sim["shipments_rescued"] and st.button("Save this plan to the decision log", key=f"save-{key}",
+                                              help="Writes a Plan node into the workspace graph, linked to "
+                                                   "both ports and to every shipment it rescues."):
+        plan_id = workspace.save_plan(sim, st.session_state.get("question", ""))
+        st.success(f"Saved {plan_id}: divert {sim['closed']['name']} to {sim['fallback']['name']}. "
+                   "It is in the decision log on the home page.")
     st.dataframe(pd.DataFrame([{
         "Shipment": r["shipment"], "Customer": r["customer"], "Delay before": r["delay_before"],
         "Delay after": r["delay_after"], "Tolerance": r["sla_days"],
@@ -335,6 +341,28 @@ def show_radar() -> None:
             right.button("Analyze", key=f"radar-{i}", on_click=ask, args=(r["question"],), width="stretch")
 
 
+def show_decision_log() -> None:
+    try:
+        plans = workspace.list_plans()
+    except Exception as error:  # the workspace is optional: never break the page
+        st.caption(f"Decision log unavailable ({type(error).__name__}).")
+        return
+    if not plans:
+        return
+    st.subheader("Decision log")
+    st.caption("Diversions you kept, stored as Plan nodes in the workspace graph and linked to the "
+               "ports and the shipments they rescue.")
+    st.dataframe(pd.DataFrame([{
+        "Plan": p["id"], "Saved": f"{p['created_at']:%d %b %H:%M}", "Divert": f"{p['closed']} → {p['fallback']}",
+        "Days": p["days"], "Shipments rescued": p["shipments_rescued"],
+        "Breaches avoided": p["breaches_avoided"], "Value protected": agent.money(p["value_protected_usd"]),
+        "Customers protected": ", ".join(p["customers_protected"]),
+    } for p in plans]), hide_index=True, width="stretch")
+    if st.button("Clear the decision log and the agent's memory"):
+        workspace.clear()
+        st.rerun()
+
+
 def new_scenario() -> None:
     st.session_state["history"] = []
     st.session_state["question"] = ""
@@ -399,3 +427,4 @@ else:
                 "Ripple finds every shipment and customer affected, several hops away, "
                 "and shows the path it followed.")
     show_radar()
+    show_decision_log()

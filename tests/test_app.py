@@ -124,3 +124,12 @@ def test_landing_page_shows_the_radar_and_analyze_runs_it():
     assert not page.exception
     assert page.session_state["question"].startswith("Port of Rotterdam")
     assert page.metric
+
+
+def test_save_a_plan_and_find_it_in_the_decision_log():
+    page = render("Port of Rotterdam closed for 3 days")
+    page.button(key="save-0").click().run()
+    assert not page.exception and any("Saved P-" in s.value for s in page.success)
+    page.session_state["question"] = ""
+    page.run()
+    assert any(s.value == "Decision log" for s in page.subheader)

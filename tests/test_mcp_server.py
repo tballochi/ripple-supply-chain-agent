@@ -69,3 +69,17 @@ def test_simulate_diversion_rejects_a_far_port():
 def test_risk_radar_tool():
     out = mcp_server.risk_radar(limit=3)
     assert len(out["alerts"]) == 3 and out["alerts"][0]["question"]
+
+
+def test_memory_and_plan_tools():
+    from ripple import agent, db, mitigation
+    conn = db.connect()
+    try:
+        out = agent.answer(conn, "Port of Rotterdam closed for 3 days", use_llm=False, remember=True)
+        workspace_plan = mitigation.simulate_diversion(conn, "NLRTM", "DEHAM", 3, out["results"][0])
+    finally:
+        conn.close()
+    from ripple import workspace
+    workspace.save_plan(workspace_plan, out["question"])
+    assert mcp_server.recall_analyses("Rotterdam")["analyses"][0]["shipments"] == 29
+    assert mcp_server.list_plans()["plans"][0]["fallback"] == "Hamburg"

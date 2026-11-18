@@ -17,7 +17,7 @@ import relate
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from . import agent, db, mitigation, queries, radar, retrieval
+from . import agent, db, mitigation, queries, radar, retrieval, workspace
 
 server = MCPServer(
     "ripple",
@@ -165,6 +165,28 @@ def risk_radar(limit: int = 10) -> dict:
     finally:
         conn.close()
     return plain({"today": radar.SCENARIO_DATE, "alerts": rows})
+
+
+@server.tool()
+def recall_analyses(port_or_vessel: str, limit: int = 5) -> dict:
+    """The agent's memory: earlier analyses about a port or a vessel (name or code), newest
+    first, with the question asked and how many shipments were late."""
+    conn = db.connect()
+    try:
+        try:
+            ports, vessels = [find_port(conn, port_or_vessel)], []
+        except ToolError:
+            ports, vessels = [], [find_vessel(conn, port_or_vessel)]
+    finally:
+        conn.close()
+    return plain({"analyses": workspace.recall(ports, vessels, limit)})
+
+
+@server.tool()
+def list_plans() -> dict:
+    """The decision log: diversions users kept, each with the closed and fallback ports, the
+    shipments rescued and the customers protected."""
+    return plain({"plans": workspace.list_plans()})
 
 
 @server.tool()

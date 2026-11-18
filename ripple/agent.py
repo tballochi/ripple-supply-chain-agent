@@ -27,7 +27,7 @@ import math
 import re
 import sys
 
-from . import db, llm, queries, retrieval
+from . import db, llm, plain_rag, queries, retrieval
 
 DEFAULT_DAYS = 3
 NUMBER_WORDS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
@@ -250,6 +250,13 @@ def answer(conn, question: str, use_llm: bool | None = None) -> dict:
     return {"question": question, "planned_by": planned_by, "explained_by": explained_by,
             "plan": plan, "retrieval": found, "results": results,
             "explanation": explanation, "steps": steps}
+
+
+def compare_with_plain_rag(conn, question: str, k: int = 10) -> dict:
+    """Same question, two answers: Ripple's graph walk and a plain RAG
+    top-k search over the same data written as text (ripple/plain_rag.py)."""
+    out = answer(conn, question, use_llm=False)
+    return plain_rag.compare(conn, question, out["results"], k)
 
 
 if __name__ == "__main__":

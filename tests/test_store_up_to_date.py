@@ -14,11 +14,12 @@ STORE_FILES = ["graph.json", ".cypherlite/schema/schema.cypher"]
 def test_regenerated_store_matches_the_committed_one(tmp_path, monkeypatch):
     # The vectors come from data/alert_embeddings.json: no model needed.
     monkeypatch.setenv("RIPPLE_NO_EMBEDDINGS", "1")
-    cache_before = generate.VECTOR_CACHE.read_text()
+    caches = [generate.VECTOR_CACHE, generate.RAG_VECTOR_CACHE]
+    before = [c.read_text() for c in caches]
     fresh = tmp_path / "ripple.relate"
     generate.load(generate.build_dataset(), path=fresh)
 
-    assert generate.VECTOR_CACHE.read_text() == cache_before, "vector cache is stale"
+    assert [c.read_text() for c in caches] == before, "a vector cache is stale"
     for name in STORE_FILES:
         committed = (db.STORE_PATH / name).read_text()
         regenerated = (fresh / name).read_text()

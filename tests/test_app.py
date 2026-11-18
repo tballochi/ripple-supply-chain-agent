@@ -91,3 +91,9 @@ def test_interactions_do_not_rerun_the_agent(monkeypatch):
     page.selectbox(key="fallback-0").set_value(page.selectbox(key="fallback-0").options[-1]).run()
     page.select_slider[0].set_value(20).run()
     assert not page.exception and len(calls) == 1
+
+
+def test_several_ports_show_a_combined_impact():
+    page = render("ports in China closed for 4 days")
+    labels = {m.label for m in page.metric}
+    assert {"Unique shipments late", "Hit twice, counted once"} <= labels

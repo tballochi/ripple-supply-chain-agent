@@ -124,14 +124,25 @@ def extra_distance(sim: dict) -> str:
 def explain_with_rules(results: list, plan: dict) -> str:
     """Deterministic explanation, built only from the query results."""
     parts = []
+    if len(results) > 1:
+        c = queries.combine(results)
+        quiet = [r["disruption"]["name"] for r in results if not r["impacted"]]
+        parts.append(
+            f"**Combined impact of {len(results)} disruptions** ({', '.join(c['disruptions'])}): "
+            f"{c['shipments']} shipments on {c['vessels']} vessel(s) delayed by up to {c['max_delay_days']} days, "
+            f"{c['customers']} customers, {money(c['value_at_risk_usd'])} of cargo, {c['sla_breaches']} beyond "
+            f"tolerance, and {c['downstream_customers']} more customer(s) through their suppliers."
+            + (f" {c['double_counted']} shipment(s) are hit twice and counted once." if c["double_counted"] else "")
+            + (f" No vessel is due at {', '.join(quiet)} during that window." if quiet else ""))
     for result in results:
         d, s = result["disruption"], result["summary"]
         what = "closed" if d["kind"] == "port_closure" else "out of service"
         lines = [f"**{d['name']} {what} for {d['days']} days** ({d['start']} to {d['reopen']})."]
         if not result["impacted"]:
-            lines.append("No vessel in the graph is scheduled to call there during that window, "
-                         "so no shipment is delayed.")
-            parts.append("\n".join(lines))
+            if len(results) == 1:  # with several, the combined line already says it
+                lines.append("No vessel in the graph is scheduled to call there during that window, "
+                             "so no shipment is delayed.")
+                parts.append("\n".join(lines))
             continue
         lines.append(
             f"{s['shipments']} shipments on {s['vessels']} vessel(s) are delayed by up to "

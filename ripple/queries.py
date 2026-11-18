@@ -189,6 +189,33 @@ def vessel_outage(conn, imo: str, days: int, start: date = SCENARIO_DATE) -> dic
     return _analyze(conn, rows, [], disruption)
 
 
+def combine(results: list) -> dict:
+    """One impact for several disruptions at once ("storm in the North Sea").
+
+    A shipment hit by two closures counts once, with its largest delay (a
+    conservative simplification: the delays are not added up)."""
+    worst = {}
+    for res in results:
+        for row in res["impacted"]:
+            if row["shipment"] not in worst or row["delay_days"] > worst[row["shipment"]]["delay_days"]:
+                worst[row["shipment"]] = row
+    rows = list(worst.values())
+    direct = {r["customer_id"] for r in rows}
+    downstream = {r["customer_id"] for res in results for r in res["downstream"]} - direct
+    return {
+        "disruptions": [res["disruption"]["name"] for res in results],
+        "shipments": len(rows),
+        "customers": len(direct),
+        "vessels": len({r["vessel"] for r in rows}),
+        "sla_breaches": sum(r["delay_days"] > r["sla_days"] for r in rows),
+        "value_at_risk_usd": sum(r["value_usd"] for r in rows),
+        "max_delay_days": max((r["delay_days"] for r in rows), default=0),
+        "downstream_customers": len(downstream),
+        # Shipments that would be counted twice by adding up the closures.
+        "double_counted": sum(len(res["impacted"]) for res in results) - len(rows),
+    }
+
+
 def print_report(result: dict, top: int = 8) -> None:
     d, s = result["disruption"], result["summary"]
     print(f"\n{d['name']} unavailable for {d['days']} days ({d['start']} to {d['reopen']})")

@@ -121,3 +121,16 @@ def test_second_order_count_excludes_directly_hit_customers(conn):
     direct = {r["customer_id"] for r in result["impacted"]}
     only_downstream = {r["customer_id"] for r in result["downstream"]} - direct
     assert result["summary"]["downstream_customers"] == len(only_downstream) > 0
+
+
+def test_combined_impact_counts_each_shipment_once(conn):
+    results = [queries.port_closure(conn, code, 4) for code in ("CNNGB", "CNSHA", "CNSZX")]
+    combined = queries.combine(results)
+    all_rows = [r for res in results for r in res["impacted"]]
+    unique = {r["shipment"] for r in all_rows}
+    assert combined["shipments"] == len(unique) < len(all_rows)
+    assert combined["double_counted"] == len(all_rows) - len(unique)
+    worst = {}
+    for r in all_rows:
+        worst[r["shipment"]] = max(worst.get(r["shipment"], 0), r["delay_days"])
+    assert combined["max_delay_days"] == max(worst.values())

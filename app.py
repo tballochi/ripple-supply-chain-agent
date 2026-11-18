@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from ripple import agent, db, llm, mitigation, plain_rag
+from ripple import agent, db, llm, mitigation, plain_rag, queries
 
 EXAMPLES = [
     "Port of Rotterdam closed for 3 days",
@@ -314,6 +314,16 @@ if question:
     if out["results"]:
         tab_impact, tab_compare = st.tabs(["Impact", "Graph vs plain RAG"])
         with tab_impact:
+            if len(out["results"]) > 1:
+                c = queries.combine(out["results"])
+                st.subheader(f"Combined: {len(out['results'])} disruptions at once")
+                cols = st.columns(5)
+                cols[0].metric("Unique shipments late", c["shipments"])
+                cols[1].metric("Unique customers", c["customers"])
+                cols[2].metric("Beyond tolerance (all)", c["sla_breaches"])
+                cols[3].metric("Cargo value (all)", agent.money(c["value_at_risk_usd"]))
+                cols[4].metric("Hit twice, counted once", c["double_counted"])
+                st.divider()
             for index, result in enumerate(out["results"]):
                 if index:
                     st.divider()

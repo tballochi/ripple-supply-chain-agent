@@ -45,19 +45,13 @@ def scan(conn, today: date = SCENARIO_DATE, lookback_days: int = LOOKBACK_DAYS) 
         if remaining <= 0:
             continue  # already over
         results = [queries.port_closure(conn, code, remaining, today) for code in alert["port_codes"]]
-        combined = queries.combine(results)
-        late = [r for res in results for r in res["impacted"]]
-        worst = {}
-        for r in late:  # one row per shipment, with its largest delay
-            if r["shipment"] not in worst or r["delay_days"] > worst[r["shipment"]]["delay_days"]:
-                worst[r["shipment"]] = r
+        combined = queries.combine(results)  # each shipment once, with its largest delay
         rows.append({
             **alert, "days_total": total_days, "days_remaining": remaining,
             "shipments": combined["shipments"], "customers": combined["customers"],
             "sla_breaches": combined["sla_breaches"], "ripple_customers": combined["downstream_customers"],
             "value_at_risk_usd": combined["value_at_risk_usd"],
-            "value_beyond_tolerance_usd": sum(r["value_usd"] for r in worst.values()
-                                              if r["delay_days"] > r["sla_days"]),
+            "value_beyond_tolerance_usd": combined["value_beyond_tolerance_usd"],
             # The question to ask Ripple for the full analysis of this alert.
             "question": (f"{' and '.join('Port of ' + n for n in alert['port_names'])} closed for "
                          f"{remaining} days"),

@@ -54,8 +54,8 @@ MONTHS = {m: i for i, m in enumerate(
 ISO_DATE = re.compile(r"\b(20\d\d)-(\d\d)-(\d\d)\b")
 MONTH_DAY = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b",
                        re.IGNORECASE)
-DAY_MONTH = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b",
-                       re.IGNORECASE)
+DAY_MONTH = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?"
+                       r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b", re.IGNORECASE)
 
 
 def parse_start(text: str) -> date | None:
@@ -313,7 +313,8 @@ def explain_with_llm(results: list, plan: dict) -> str:
 
 def llm_reason(error: Exception) -> str:
     """A short, user-facing reason for an LLM fallback."""
-    return str(error) if isinstance(error, (llm.LLMError, ValueError)) else type(error).__name__
+    known = (llm.LLMError, lookup.QueryRefused, ValueError)
+    return str(error) if isinstance(error, known) else type(error).__name__
 
 
 def answer(conn, question: str, use_llm: bool | None = None, previous: dict | None = None,
@@ -368,8 +369,8 @@ def answer(conn, question: str, use_llm: bool | None = None, previous: dict | No
         try:
             data_answer = lookup.ask(conn, question)
             steps.append(f"Free question: LLM-written Cypher returned {len(data_answer['rows'])} row(s)")
-        except (lookup.LookupError, llm.LLMError, ValueError) as error:
-            steps.append(f"Free question not answered ({llm_reason(error) if not isinstance(error, lookup.LookupError) else error})")
+        except (lookup.QueryRefused, llm.LLMError, ValueError) as error:
+            steps.append(f"Free question not answered ({llm_reason(error)})")
     if data_answer:
         explained_by = "llm"
         explanation = (f"{data_answer['explanation'] or 'Answered from the graph.'}\n\n"

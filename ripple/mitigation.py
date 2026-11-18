@@ -123,7 +123,8 @@ if __name__ == "__main__":
     days = int(sys.argv[3]) if len(sys.argv) > 3 else 3
     conn = db.connect()
     try:
-        names = {r["name"].lower(): r["code"] for r in conn.execute("MATCH (p:Port) RETURN p.name AS name, p.code AS code")}
+        rows = conn.execute("MATCH (p:Port) RETURN p.name AS name, p.code AS code")
+        names = {r["name"].lower(): r["code"] for r in rows}
         sim = simulate_diversion(conn, names[closed.lower()], names[fallback_name.lower()], days)
     finally:
         conn.close()

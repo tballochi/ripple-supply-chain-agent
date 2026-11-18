@@ -23,7 +23,7 @@ import shutil
 import tempfile
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import relate
@@ -118,7 +118,7 @@ def record_episode(out: dict) -> str:
         WITH e, ports, collect(v) AS vessels
         FOREACH (t IN ports + vessels | CREATE (e)-[:ABOUT]->(t))
     """, {
-        "id": episode_id, "question": out["question"], "at": datetime.now(timezone.utc),
+        "id": episode_id, "question": out["question"], "at": datetime.now(UTC),
         "days": out["plan"]["days"], "start": out["plan"]["start"], "planned_by": out["planned_by"],
         "shipments": sum(r["summary"]["shipments"] for r in results),
         "customers": sum(r["summary"]["customers"] for r in results),
@@ -158,7 +158,7 @@ def save_plan(sim: dict, question: str) -> str:
         MATCH (s:Shipment {id: row.shipment})
         CREATE (pl)-[:RESCUES {delay_before: row.before, delay_after: row.after}]->(s)
     """, {
-        "id": plan_id, "question": question, "at": datetime.now(timezone.utc),
+        "id": plan_id, "question": question, "at": datetime.now(UTC),
         "closed": sim["closed"]["code"], "fallback": sim["fallback"]["code"], "days": sim["closed"]["days"],
         "rescued_count": len(rescued), "breaches": sim["breaches_avoided"],
         "value": sim["value_protected_usd"], "sea_km": sim["extra_sea_km"], "road_km": sim["extra_road_km"],

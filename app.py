@@ -226,8 +226,9 @@ def show_mitigation(result: dict, key: str) -> None:
     names = {a["code"]: f"{a['name']} ({a['km']} km, " + (
         f"shares route(s) {', '.join(a['shared_routes'])})" if a["shared_routes"] else "on none of the same routes)")
              for a in alternatives}
+    best_code = best["fallback"]["code"] if best else None
     fallback = st.selectbox("Divert the impacted vessels to", codes, index=default,
-                            format_func=lambda c: names[c] + ("  ★ best" if best and c == best["fallback"]["code"] else ""),
+                            format_func=lambda c: names[c] + ("  ★ best" if best and c == best_code else ""),
                             key=f"fallback-{key}")
     sim = run_diversion(result, fallback)
     b, a = sim["before"], sim["after"]
@@ -256,7 +257,8 @@ def show_mitigation(result: dict, key: str) -> None:
     } for r in sim["shipments"]]), hide_index=True, width="stretch")
     st.caption("Model: no sea detour if the fallback is already on the vessel's route, otherwise "
                f"{mitigation.SEA_KM_PER_DAY} km/day plus a day in port; cargo loaded or unloaded at the "
-               f"closed port goes by truck or feeder at {mitigation.LAND_KM_PER_DAY} km/day up to {mitigation.MAX_TRANSFER_KM} km; a shipment is diverted "
+               f"closed port goes by truck or feeder at {mitigation.LAND_KM_PER_DAY} km/day up to "
+               f"{mitigation.MAX_TRANSFER_KM} km; a shipment is diverted "
                "only when that is faster than waiting.")
 
 
@@ -275,20 +277,19 @@ with st.sidebar:
         use_llm = False
         st.info("No API key found: running in rule-based mode. "
                 "Add a Groq or Mistral key to `.env` to enable the LLM.")
-    with st.expander("Build a scenario", expanded=False):
-        with st.form("scenario", border=False):
-            kind = st.radio("What is disrupted?", ["Port closure", "Vessel outage"], horizontal=True)
-            names = graph_names()
-            target = st.selectbox("Port or vessel", names["ports"] if kind == "Port closure" else names["vessels"])
-            days = st.slider("Duration (days)", 1, 14, 3)
-            start = st.date_input("Starting on", value=SCENARIO_DATE, min_value=SCENARIO_DATE,
-                                  max_value=SCENARIO_DATE + timedelta(days=6),
-                                  help="The graph holds the vessels' current voyages, so the later the "
-                                       "start, the fewer vessels are scheduled.")
-            if st.form_submit_button("Run scenario", width="stretch"):
-                what = f"Port of {target} closed" if kind == "Port closure" else f"{target} out of service"
-                st.session_state["question"] = f"{what} for {days} days from {start.isoformat()}"
-                st.session_state["history"] = []  # a new scenario, not a follow-up
+    with st.expander("Build a scenario", expanded=False), st.form("scenario", border=False):
+        kind = st.radio("What is disrupted?", ["Port closure", "Vessel outage"], horizontal=True)
+        names = graph_names()
+        target = st.selectbox("Port or vessel", names["ports"] if kind == "Port closure" else names["vessels"])
+        days = st.slider("Duration (days)", 1, 14, 3)
+        start = st.date_input("Starting on", value=SCENARIO_DATE, min_value=SCENARIO_DATE,
+                              max_value=SCENARIO_DATE + timedelta(days=6),
+                              help="The graph holds the vessels' current voyages, so the later the "
+                                   "start, the fewer vessels are scheduled.")
+        if st.form_submit_button("Run scenario", width="stretch"):
+            what = f"Port of {target} closed" if kind == "Port closure" else f"{target} out of service"
+            st.session_state["question"] = f"{what} for {days} days from {start.isoformat()}"
+            st.session_state["history"] = []  # a new scenario, not a follow-up
     st.markdown("**Try an example**")
     for example in EXAMPLES:
         if st.button(example, width="stretch"):

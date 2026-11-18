@@ -1,0 +1,13 @@
+# Lint settings (python -m ruff check). Dependencies live in requirements.txt.
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "SIM", "I"]
+# A word list written as one string reads better than 60 quoted items.
+ignore = ["SIM905"]
+
+[tool.ruff.lint.per-file-ignores]
+# The LLM prompt holds one-line JSON examples; wrapping them would change the prompt.
+"ripple/lookup.py" = ["E501"]

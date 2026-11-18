@@ -19,12 +19,12 @@ def test_a_read_query_passes(conn):
 @pytest.mark.parametrize("cypher", ["CREATE (:Port {name: 'x'})", "MATCH (p:Port) SET p.name = 'x'",
                                     "MATCH (p:Port) DETACH DELETE p"])
 def test_writes_are_refused_before_running(conn, cypher):
-    with pytest.raises(lookup.LookupError, match="modify"):
+    with pytest.raises(lookup.QueryRefused, match="modify"):
         lookup.check(conn, cypher)
 
 
 def test_syntax_errors_are_caught(conn):
-    with pytest.raises(lookup.LookupError, match="invalid Cypher"):
+    with pytest.raises(lookup.QueryRefused, match="invalid Cypher"):
         lookup.check(conn, "MATCH (p:Port RETURN p")
 
 

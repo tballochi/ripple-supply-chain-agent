@@ -68,7 +68,7 @@ def schema_text(conn) -> str:
     return "\n".join(nodes + rels)
 
 
-class LookupError(Exception):
+class QueryRefused(Exception):
     """The question could not be turned into a safe, valid query."""
 
 
@@ -77,9 +77,9 @@ def check(conn, cypher: str) -> None:
     try:
         query_type = conn.execute("EXPLAIN " + cypher).consume().query_type
     except relate.Error as error:
-        raise LookupError(f"invalid Cypher: {str(error).splitlines()[0]}") from error
+        raise QueryRefused(f"invalid Cypher: {str(error).splitlines()[0]}") from error
     if query_type != "r":
-        raise LookupError("the query would modify the graph, refused")
+        raise QueryRefused("the query would modify the graph, refused")
 
 
 def plain_value(value):
@@ -92,14 +92,14 @@ def plain_value(value):
 
 
 def ask(conn, question: str) -> dict:
-    """Question -> Cypher (LLM) -> checked -> rows. Raises LookupError or llm.LLMError."""
+    """Question -> Cypher (LLM) -> checked -> rows. Raises QueryRefused or llm.LLMError."""
     system = CYPHER_SYSTEM + schema_text(conn)
     answer = llm.chat_json(system, question)
     cypher = str(answer.get("cypher", "")).strip().rstrip(";")
     repaired = False
     try:
         check(conn, cypher)
-    except LookupError as error:  # one repair round, with the error message
+    except QueryRefused as error:  # one repair round, with the error message
         answer, cypher, repaired = *repair(system, question, cypher, f"failed with: {error}"), True
         check(conn, cypher)
     result = run(conn, cypher)
@@ -111,7 +111,7 @@ def ask(conn, question: str) -> dict:
             second = run(conn, cypher2)
             if second["rows"]:
                 answer, result = answer2, second
-        except LookupError:
+        except QueryRefused:
             pass
     return {**result, "explanation": str(answer.get("explanation", ""))[:300]}
 

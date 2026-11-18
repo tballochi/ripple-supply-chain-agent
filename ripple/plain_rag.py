@@ -143,7 +143,7 @@ def search(conn, question: str, k: int = 10) -> dict:
     query_vector = embeddings.embed([question]) if index["vectors"] else None
     if query_vector:
         q = query_vector[0]
-        sims = [sum(a * b for a, b in zip(q, v)) for v in index["vectors"]]
+        sims = [sum(a * b for a, b in zip(q, v, strict=True)) for v in index["vectors"]]
         rankings.append(sorted(range(len(sims)), key=lambda i: -sims[i]))
     fused = Counter()
     for ranking in rankings:

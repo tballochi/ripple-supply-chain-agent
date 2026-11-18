@@ -162,7 +162,8 @@ NOISE_ALERTS = [
 # question like "the ransomware attack in Korea" can only be answered by
 # finding this alert first and then following MENTIONS to the port.
 HEADLINE_ALERTS = [
-    ("high", "Typhoon Mira expected to make landfall near Shanghai; Yangshan and Ningbo terminals will suspend operations.",
+    ("high", "Typhoon Mira expected to make landfall near Shanghai; "
+             "Yangshan and Ningbo terminals will suspend operations.",
      ["CNSHA", "CNNGB"]),
     ("high", "Ransomware attack knocks out the terminal operating system at Busan New Port; all gates closed.",
      ["KRPUS"]),
@@ -242,7 +243,7 @@ def build_dataset() -> dict:
         plan.append((rid, started, None))
         fleet[rid] += 1
     vessels = []
-    for i, ((rid, started, scheduled_port), name) in enumerate(zip(plan, names)):
+    for i, ((rid, started, scheduled_port), name) in enumerate(zip(plan, names, strict=True)):
         vessels.append(dict(imo=f"IMO{9300000 + i * 137}", name=name, route=rid,
                             capacity_teu=rng.choice([4000, 8000, 12000, 16000, 20000]),
                             voyage_start=started, scheduled_port=scheduled_port))
@@ -400,7 +401,7 @@ def cached_vectors(texts: list[str], cache_path: Path = VECTOR_CACHE) -> list[li
             print(f"[ripple] {len(missing)} text(s) have no cached vector and the model is "
                   "unavailable: the store gets no vector index.")
             return None
-        cache.update(zip(missing, computed))
+        cache.update(zip(missing, computed, strict=True))
         # Keep only the current texts, in a stable order, so diffs stay small.
         cache_path.write_text(json.dumps({t: cache[t] for t in sorted(set(texts))}, indent=0) + "\n")
     return [cache[t] for t in texts]
@@ -420,7 +421,7 @@ def load(data: dict, path: Path = db.STORE_PATH) -> None:
         # model; without it we still build the full-text index.
         vectors = cached_vectors([a["text"] for a in data["alerts"]])
         if vectors:
-            rows = [{"id": a["id"], "vector": v} for a, v in zip(data["alerts"], vectors)]
+            rows = [{"id": a["id"], "vector": v} for a, v in zip(data["alerts"], vectors, strict=True)]
             conn.execute(
                 "UNWIND $rows AS r MATCH (a:Alert {id: r.id}) "
                 f"SET a.embedding = vector(r.vector, {embeddings.DIMENSIONS}, FLOAT32)", {"rows": rows})

@@ -149,6 +149,7 @@ def test_ripple_follows_several_supplier_tiers(conn):
 
 def test_drawings_keep_the_direction_stored_in_the_graph(conn):
     import json
+
     from ripple import viz
     row = queries.port_closure(conn, "NLRTM", 3)["impacted"][0]
     route, port = row["path_nodes"][1]["name"], row["path_nodes"][0]["name"]
@@ -163,6 +164,7 @@ def test_drawings_keep_the_direction_stored_in_the_graph(conn):
 
 def test_interactive_graph_puts_ripple_paths_after_their_shipment(conn):
     import json
+
     from ripple import viz
     result = queries.port_closure(conn, "NLRTM", 3)
     ripple = next(r for r in result["downstream"] if r["supplier_hops"] == 2)

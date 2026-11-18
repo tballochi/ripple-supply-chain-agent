@@ -109,7 +109,7 @@ TIER_WEIGHT = {"standard": 1.0, "key": 1.5, "strategic": 2.0}
 def path_text(nodes: list, rels: list) -> str:
     """Render a path as 'Rotterdam <-[CALLS_AT]- Route <-[SAILS]- Vessel ...'."""
     out = nodes[0]["name"]
-    for rel, node in zip(rels, nodes[1:]):
+    for rel, node in zip(rels, nodes[1:], strict=True):
         arrow = f"-[{rel['type']}]->" if rel["forward"] else f"<-[{rel['type']}]-"
         out += f" {arrow} {node['name']}"
     return out
@@ -212,6 +212,7 @@ def combine(results: list) -> dict:
         "vessels": len({r["vessel"] for r in rows}),
         "sla_breaches": sum(r["delay_days"] > r["sla_days"] for r in rows),
         "value_at_risk_usd": sum(r["value_usd"] for r in rows),
+        "value_beyond_tolerance_usd": sum(r["value_usd"] for r in rows if r["delay_days"] > r["sla_days"]),
         "max_delay_days": max((r["delay_days"] for r in rows), default=0),
         "downstream_customers": len(downstream),
         # Shipments that would be counted twice by adding up the closures.

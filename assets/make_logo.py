@@ -51,7 +51,8 @@ def icon() -> str:
   <title>Ripple</title>
   {DEFS}
   <rect width="128" height="128" rx="28" fill="url(#bg)"/>
-  <rect x="1" y="1" width="126" height="126" rx="27" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="2"/>
+  <rect x="1" y="1" width="126" height="126" rx="27" fill="none"
+        stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="2"/>
   <g stroke="url(#silver)" stroke-width="2.6" stroke-linecap="round" fill="none">{lines}</g>
   <circle cx="{x:.1f}" cy="{y:.1f}" r="15" fill="url(#glow)"/>
   <circle cx="{x:.1f}" cy="{y:.1f}" r="5.5" fill="{RED}"/>

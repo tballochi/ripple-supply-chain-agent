@@ -185,3 +185,30 @@ def test_a_new_question_is_not_a_follow_up(conn):
                          previous={"question": first["question"], "plan": first["plan"]})
     assert fresh["plan"]["ports"] == ["CNSHA"] and fresh["plan"]["days_assumed"]
     assert "follow_up_of" not in fresh["plan"]
+
+
+def test_free_question_is_answered_with_checked_cypher(conn, monkeypatch):
+    cypher = ("MATCH (c:Customer)<-[:FOR]-(:Shipment)-[:CONTAINS]->(:Product {name: 'Sneakers'}) "
+              "RETURN DISTINCT c.name AS customer ORDER BY customer LIMIT 50")
+    fake_llm(monkeypatch, plan={"port_codes": [], "vessel_imos": [], "days": None})
+    monkeypatch.setattr(llm, "chat_json", lambda system, user: (
+        {"cypher": cypher, "explanation": "Customers of sneakers."} if "Cypher" in system
+        else {"port_codes": [], "vessel_imos": [], "days": None}))
+    out = agent.answer(conn, "which customers buy sneakers?")
+    assert out["results"] == [] and out["data_answer"]["rows"]
+    assert cypher in out["explanation"] and "| customer |" in out["explanation"]
+
+
+def test_free_question_refuses_a_write(conn, monkeypatch):
+    fake_llm(monkeypatch, plan={"port_codes": [], "vessel_imos": [], "days": None})
+    monkeypatch.setattr(llm, "chat_json", lambda system, user: (
+        {"cypher": "MATCH (p:Port) SET p.name = 'x' RETURN p"} if "Cypher" in system
+        else {"port_codes": [], "vessel_imos": [], "days": None}))
+    out = agent.answer(conn, "rename every port")
+    assert out["data_answer"] is None
+    assert any("would modify the graph" in step for step in out["steps"])
+
+
+def test_free_question_needs_the_llm(conn):
+    out = agent.answer(conn, "which customers buy sneakers?", use_llm=False)
+    assert out["data_answer"] is None and "need the LLM mode" in out["explanation"]

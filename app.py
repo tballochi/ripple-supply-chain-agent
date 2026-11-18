@@ -351,6 +351,9 @@ if question:
         right.button("New scenario", on_click=new_scenario, width="stretch")
 
     st.markdown(out["explanation"])
+    if out.get("data_answer") and len(out["data_answer"]["rows"]) > 10:
+        with st.expander(f"All {len(out['data_answer']['rows'])} rows"):
+            st.dataframe(pd.DataFrame(out["data_answer"]["rows"]), hide_index=True, width="stretch")
     with st.expander("How the agent got there"):
         for step in out["steps"]:
             st.markdown(f"- {step}")

@@ -28,7 +28,7 @@ import re
 import sys
 from datetime import date
 
-from . import db, llm, mitigation, plain_rag, queries, retrieval
+from . import db, llm, lookup, mitigation, plain_rag, queries, retrieval
 from .generate import SCENARIO_DATE
 
 DEFAULT_DAYS = 3
@@ -358,14 +358,30 @@ def answer(conn, question: str, use_llm: bool | None = None, previous: dict | No
     # 3. Explain
     explained_by = "rules"
     area = found.get("area")
-    if not results and area:
+    data_answer = None
+    if not results and not area and use_llm:
+        # Not a disruption: maybe a question about the data, answered with
+        # LLM-written, checked, read-only Cypher (ripple/lookup.py).
+        try:
+            data_answer = lookup.ask(conn, question)
+            steps.append(f"Free question: LLM-written Cypher returned {len(data_answer['rows'])} row(s)")
+        except (lookup.LookupError, llm.LLMError, ValueError) as error:
+            steps.append(f"Free question not answered ({llm_reason(error) if not isinstance(error, lookup.LookupError) else error})")
+    if data_answer:
+        explained_by = "llm"
+        explanation = (f"{data_answer['explanation'] or 'Answered from the graph.'}\n\n"
+                       f"{lookup.as_markdown(data_answer)}\n\nCypher written by the LLM and checked before "
+                       f"running (read-only):\n\n```cypher\n{data_answer['cypher']}\n```")
+    elif not results and area:
         explanation = (f"No port of the graph lies within {area['radius_km']:,} km of the {area['name']}. "
                        f"The closest one is {area['nearest_port']}, {area['nearest_km']:,.0f} km away, "
                        "so no shipment in the graph is directly affected.")
     elif not results:
         explanation = ("I could not link this to a port or a vessel in the graph. "
                        "Try naming a port (\"Port of Rotterdam closed for 3 days\"), a vessel, "
-                       "a country, or an incident from the news alerts.")
+                       "a country, or an incident from the news alerts."
+                       + ("" if use_llm else " Free questions about the data (\"which customers buy "
+                          "sneakers?\") need the LLM mode."))
     else:
         explanation = None
         if use_llm:
@@ -378,7 +394,7 @@ def answer(conn, question: str, use_llm: bool | None = None, previous: dict | No
     steps.append(f"Explanation written by: {explained_by}")
 
     return {"question": question, "planned_by": planned_by, "explained_by": explained_by,
-            "plan": plan, "retrieval": found, "results": results,
+            "plan": plan, "retrieval": found, "results": results, "data_answer": data_answer,
             "explanation": explanation, "steps": steps}
 
 

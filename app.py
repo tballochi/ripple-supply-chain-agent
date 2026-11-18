@@ -8,7 +8,7 @@ explains it. No analysis logic lives here.
 import pandas as pd
 import streamlit as st
 
-from ripple import agent, db, llm, plain_rag
+from ripple import agent, db, llm, mitigation, plain_rag
 
 EXAMPLES = [
     "Port of Rotterdam closed for 3 days",
@@ -126,8 +126,9 @@ def show_result(result: dict, key: str) -> None:
         st.info("No vessel in the graph is scheduled to call there during that window.")
         return
 
-    tab_list, tab_graph, tab_downstream, tab_alternatives = st.tabs(
-        ["Impacted shipments", "Impact graph", "Second-order impact", "Alternatives"])
+    tab_list, tab_graph, tab_downstream, tab_mitigation = st.tabs(
+        ["Impacted shipments", "Impact graph", "Second-order impact",
+         "Mitigation" if d["kind"] == "port_closure" else "Alternatives"])
 
     with tab_list:
         table = pd.DataFrame([{
@@ -187,15 +188,58 @@ def show_result(result: dict, key: str) -> None:
         else:
             st.info("No second-order impact.")
 
-    with tab_alternatives:
+    with tab_mitigation:
         if result["alternatives"]:
-            st.markdown("Nearby ports in the graph, best first: those already on the same routes need no detour.")
-            st.dataframe(pd.DataFrame([{
-                "Port": a["name"], "Country": a["country"], "Distance (km)": a["km"],
-                "Routes calling at both": ", ".join(a["shared_routes"]) or "none",
-            } for a in result["alternatives"]]), hide_index=True, width="stretch")
-        else:
+            show_mitigation(result, key)
+        elif d["kind"] == "port_closure":
             st.info("No alternative port within range in the graph.")
+        else:
+            st.info("A vessel outage has no fallback port to simulate.")
+
+
+def run_diversion(result: dict, fallback: str) -> dict:
+    conn = db.connect()
+    try:
+        d = result["disruption"]
+        return mitigation.simulate_diversion(conn, d["code"], fallback, d["days"], result)
+    finally:
+        conn.close()
+
+
+def show_mitigation(result: dict, key: str) -> None:
+    alternatives = result["alternatives"]
+    best = result.get("best_diversion")
+    codes = [a["code"] for a in alternatives]
+    default = codes.index(best["fallback"]["code"]) if best else 0
+    names = {a["code"]: f"{a['name']} ({a['km']} km, " + (
+        f"shares route(s) {', '.join(a['shared_routes'])})" if a["shared_routes"] else "on none of the same routes)")
+             for a in alternatives}
+    fallback = st.selectbox("Divert the impacted vessels to", codes, index=default,
+                            format_func=lambda c: names[c] + ("  ★ best" if best and c == best["fallback"]["code"] else ""),
+                            key=f"fallback-{key}")
+    sim = run_diversion(result, fallback)
+    b, a = sim["before"], sim["after"]
+    cols = st.columns(4)
+    cols[0].metric("Late after diversion", a["shipments_late"], a["shipments_late"] - b["shipments_late"],
+                   delta_color="inverse")
+    cols[1].metric("Delay days after", a["delay_days"], a["delay_days"] - b["delay_days"],
+                   delta_color="inverse")
+    cols[2].metric("Beyond tolerance after", a["sla_breaches"], a["sla_breaches"] - b["sla_breaches"],
+                   delta_color="inverse")
+    cols[3].metric("Value protected", agent.money(sim["value_protected_usd"]))
+    st.markdown(f"**{sim['shipments_rescued']} shipments rescued** by diverting to "
+                f"{sim['fallback']['name']}; extra distance: {sim['extra_sea_km']:,} km at sea and "
+                f"{sim['extra_road_km']:,} km by road. Before: {b['shipments_late']} late, "
+                f"{b['sla_breaches']} beyond tolerance.")
+    st.dataframe(pd.DataFrame([{
+        "Shipment": r["shipment"], "Customer": r["customer"], "Delay before": r["delay_before"],
+        "Delay after": r["delay_after"], "Tolerance": r["sla_days"],
+        "Beyond tolerance after": "yes" if r["breach_after"] else "no", "How": r["how"],
+    } for r in sim["shipments"]]), hide_index=True, width="stretch")
+    st.caption("Model: no sea detour if the fallback is already on the vessel's route, otherwise "
+               f"{mitigation.SEA_KM_PER_DAY} km/day plus a day in port; cargo loaded or unloaded at the "
+               f"closed port goes by road at {mitigation.LAND_KM_PER_DAY} km/day; a shipment is diverted "
+               "only when that is faster than waiting.")
 
 
 # ------------------------------------------------------------------- sidebar

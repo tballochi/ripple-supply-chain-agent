@@ -17,7 +17,7 @@ import relate
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from . import agent, db, queries, retrieval
+from . import agent, db, mitigation, queries, retrieval
 
 server = MCPServer(
     "ripple",
@@ -119,6 +119,23 @@ def vessel_outage_impact(vessel: str, days: int = 3, limit: int = 10) -> dict:
         return compact(queries.vessel_outage(conn, find_vessel(conn, vessel), days), limit)
     finally:
         conn.close()
+
+
+@server.tool()
+def simulate_diversion(port: str, fallback: str, days: int = 3, limit: int = 10) -> dict:
+    """Mitigation for a port closure: divert the impacted vessels from `port` to the nearby
+    `fallback` port (names or codes; it must be a NEAR port, see port_closure_impact's
+    alternative_ports). Returns before/after shipments late, total delay, SLA breaches,
+    value protected and extra distance at sea and by road."""
+    conn = db.connect()
+    try:
+        sim = mitigation.simulate_diversion(conn, find_port(conn, port), find_port(conn, fallback), days)
+    except ValueError as error:
+        raise ToolError(str(error)) from error
+    finally:
+        conn.close()
+    sim["shipments"] = sim["shipments"][:limit]
+    return plain(sim)
 
 
 @server.tool()

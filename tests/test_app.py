@@ -57,3 +57,11 @@ def test_comparison_tab_renders():
     page = render("Port of Rotterdam closed for 3 days")
     assert {"Impact", "Graph vs plain RAG"} <= {t.label for t in page.tabs}
     assert any("Plain RAG" in str(df.value.columns.tolist()) for df in page.dataframe)
+
+
+def test_mitigation_tab_shows_before_and_after():
+    page = render("Port of Rotterdam closed for 3 days")
+    assert "Mitigation" in {t.label for t in page.tabs}
+    assert any(m.label == "Value protected" for m in page.metric)
+    page.selectbox(key="fallback-0").set_value("BEANR").run()
+    assert not page.exception

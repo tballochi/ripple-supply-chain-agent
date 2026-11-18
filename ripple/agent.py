@@ -27,7 +27,7 @@ import math
 import re
 import sys
 
-from . import db, llm, plain_rag, queries, retrieval
+from . import db, llm, mitigation, plain_rag, queries, retrieval
 
 DEFAULT_DAYS = 3
 NUMBER_WORDS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
@@ -148,11 +148,17 @@ def explain_with_rules(results: list, plan: dict) -> str:
             lines.append(
                 f"Second-order effect: {s['downstream_customers']} more customer(s) depend on a "
                 f"manufacturer whose inputs are late, for example `{first['path']}`.")
-        if result["alternatives"]:
-            alt = result["alternatives"][0]
-            shared = ", ".join(alt["shared_routes"])
-            note = f"already on route(s) {shared}" if shared else "not on the same routes"
-            lines.append(f"Closest fallback: {alt['name']} ({alt['km']} km away, {note}).")
+        best = result.get("best_diversion")
+        if best:
+            lines.append(
+                f"Best mitigation: divert to {best['fallback']['name']} ({best['fallback']['km']} km away). "
+                f"It rescues {best['shipments_rescued']} shipments, avoids {best['breaches_avoided']} of "
+                f"{best['before']['sla_breaches']} tolerance breaches and protects "
+                f"{money(best['value_protected_usd'])} of cargo, for +{best['extra_sea_km']:,} km at sea "
+                f"and +{best['extra_road_km']:,} km by road.")
+        elif result["alternatives"]:
+            lines.append(f"Diverting to a nearby port (closest: {result['alternatives'][0]['name']}) "
+                         "would not be faster than waiting for the port to reopen.")
         elif d["kind"] == "port_closure":
             lines.append("No alternative port within range in the graph.")
         parts.append("\n\n".join(lines))
@@ -168,8 +174,8 @@ You receive JSON facts computed from a graph database. Rules:
 - Start with the headline: what is disrupted and the overall impact.
 - Then name the 2 or 3 most exposed shipments. For each, quote its `path`
   exactly, in backticks, to show how the disruption reaches the customer.
-- Mention second-order (downstream) customers and the best alternative port
-  when present.
+- Mention second-order (downstream) customers, and the best diversion
+  (`best_diversion`) with what it saves, when present.
 - If `days_assumed` is true, say the duration was assumed.
 - Plain language, under 180 words, Markdown allowed."""
 
@@ -188,6 +194,10 @@ def facts_for_llm(results: list, plan: dict) -> dict:
                            for row in r["downstream"][:3]],
             "alternatives": [{k: a[k] for k in ("name", "km", "shared_routes")}
                              for a in r["alternatives"][:3]],
+            "best_diversion": r.get("best_diversion") and {
+                k: r["best_diversion"][k] for k in ("fallback", "before", "after", "shipments_rescued",
+                                                    "breaches_avoided", "value_protected_usd",
+                                                    "extra_sea_km", "extra_road_km")},
         } for r in results],
     }
 
@@ -229,6 +239,8 @@ def answer(conn, question: str, use_llm: bool | None = None) -> dict:
     results = [queries.port_closure(conn, code, plan["days"]) for code in plan["ports"]]
     results += [queries.vessel_outage(conn, imo, plan["days"]) for imo in plan["vessels"]]
     for r in results:
+        if r["disruption"]["kind"] == "port_closure":
+            r["best_diversion"] = mitigation.best_diversion(conn, r)
         steps.append(f"Graph query {r['disruption']['kind']}({r['disruption']['name']}): "
                      f"{r['summary']['shipments']} shipments, {r['summary']['customers']} customers")
 

@@ -53,3 +53,14 @@ def test_compare_with_plain_rag_tool():
     out = mcp_server.compare_with_plain_rag("Port of Rotterdam closed for 3 days", k=10)
     assert out["graph"]["shipments"] > out["plain_rag"]["shipments_found"]
     assert len(out["documents"]) == 10
+
+
+def test_simulate_diversion_tool():
+    out = mcp_server.simulate_diversion("Rotterdam", "Hamburg", days=3, limit=3)
+    assert out["fallback"]["name"] == "Hamburg" and len(out["shipments"]) == 3
+    assert out["after"]["sla_breaches"] <= out["before"]["sla_breaches"]
+
+
+def test_simulate_diversion_rejects_a_far_port():
+    with pytest.raises(ToolError):
+        mcp_server.simulate_diversion("Rotterdam", "Los Angeles")

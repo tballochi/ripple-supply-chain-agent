@@ -13,6 +13,7 @@ final milestone.
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+python -m ripple.embeddings --download   # optional: local model for search by meaning (~70 MB)
 python -m ripple.generate   # optional: the store is already in data/ripple.relate
 cp .env.example .env        # optional: add a free Groq or Mistral key for the LLM mode
 ```

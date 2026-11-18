@@ -149,3 +149,17 @@ def test_area_without_ports_gets_an_honest_answer(conn):
     out = agent.answer(conn, "hurricane in the Gulf of Mexico", use_llm=False)
     assert out["results"] == []
     assert "Gulf of Mexico" in out["explanation"] and "Savannah" in out["explanation"]
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("from 2026-12-05", "2026-12-05"), ("starting December 5", "2026-12-05"), ("on 5th of Dec", "2026-12-05"),
+    ("February 31", None), ("closed for 3 days", None),
+])
+def test_parse_start(text, expected):
+    found = agent.parse_start(text)
+    assert (found.isoformat() if found else None) == expected
+
+
+def test_start_date_reaches_the_query(conn):
+    out = agent.answer(conn, "Port of Rotterdam closed for 3 days from 2026-12-03", use_llm=False)
+    assert out["results"][0]["disruption"]["start"].isoformat() == "2026-12-03"

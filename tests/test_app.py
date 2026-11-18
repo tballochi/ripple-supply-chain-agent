@@ -97,3 +97,12 @@ def test_several_ports_show_a_combined_impact():
     page = render("ports in China closed for 4 days")
     labels = {m.label for m in page.metric}
     assert {"Unique shipments late", "Hit twice, counted once"} <= labels
+
+
+def test_scenario_builder_writes_and_runs_a_question():
+    page = render()
+    page.selectbox[0].set_value("Antwerp")
+    page.slider[0].set_value(4)
+    page.button[0].click().run()  # the form's "Run scenario" button
+    assert page.session_state["question"] == "Port of Antwerp closed for 4 days from 2026-12-01"
+    assert not page.exception and page.metric

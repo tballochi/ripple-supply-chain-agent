@@ -7,12 +7,14 @@ explains it. No analysis logic lives here.
 
 import base64
 import os
+from datetime import timedelta
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 from ripple import agent, db, llm, mitigation, plain_rag, queries
+from ripple.generate import SCENARIO_DATE
 
 EXAMPLES = [
     "Port of Rotterdam closed for 3 days",
@@ -86,6 +88,17 @@ def show_comparison(question: str, results: list) -> None:
     with st.expander(f"The {k} documents plain RAG retrieved ({cmp['mode']} search)"):
         for d in cmp["documents"]:
             st.markdown(f"- `{d['kind']}` {d['text']}")
+
+
+@st.cache_data
+def graph_names() -> dict:
+    """Port and vessel names for the scenario builder."""
+    conn = db.connect()
+    try:
+        return {"ports": [r["n"] for r in conn.execute("MATCH (p:Port) RETURN p.name AS n ORDER BY n")],
+                "vessels": [r["n"] for r in conn.execute("MATCH (v:Vessel) RETURN v.name AS n ORDER BY n")]}
+    finally:
+        conn.close()
 
 
 @st.cache_data
@@ -278,6 +291,19 @@ with st.sidebar:
         use_llm = False
         st.info("No API key found: running in rule-based mode. "
                 "Add a Groq or Mistral key to `.env` to enable the LLM.")
+    with st.expander("Build a scenario", expanded=False):
+        with st.form("scenario", border=False):
+            kind = st.radio("What is disrupted?", ["Port closure", "Vessel outage"], horizontal=True)
+            names = graph_names()
+            target = st.selectbox("Port or vessel", names["ports"] if kind == "Port closure" else names["vessels"])
+            days = st.slider("Duration (days)", 1, 14, 3)
+            start = st.date_input("Starting on", value=SCENARIO_DATE, min_value=SCENARIO_DATE,
+                                  max_value=SCENARIO_DATE + timedelta(days=6),
+                                  help="The graph holds the vessels' current voyages, so the later the "
+                                       "start, the fewer vessels are scheduled.")
+            if st.form_submit_button("Run scenario", width="stretch"):
+                what = f"Port of {target} closed" if kind == "Port closure" else f"{target} out of service"
+                st.session_state["question"] = f"{what} for {days} days from {start.isoformat()}"
     st.markdown("**Try an example**")
     for example in EXAMPLES:
         if st.button(example, width="stretch"):

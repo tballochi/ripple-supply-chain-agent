@@ -26,8 +26,10 @@ import json
 import math
 import re
 import sys
+from datetime import date
 
 from . import db, llm, mitigation, plain_rag, queries, retrieval
+from .generate import SCENARIO_DATE
 
 DEFAULT_DAYS = 3
 NUMBER_WORDS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
@@ -45,6 +47,30 @@ def parse_days(text: str) -> int | None:
     unit = match.group(2).lower()
     days = {"hour": math.ceil(number / 24), "day": number, "week": number * 7}[unit]
     return max(1, min(days, 60))
+
+
+MONTHS = {m: i for i, m in enumerate(
+    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], start=1)}
+ISO_DATE = re.compile(r"\b(20\d\d)-(\d\d)-(\d\d)\b")
+MONTH_DAY = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b",
+                       re.IGNORECASE)
+DAY_MONTH = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b",
+                       re.IGNORECASE)
+
+
+def parse_start(text: str) -> date | None:
+    """'from 2026-12-05', 'starting December 5', 'on 5 Dec' -> a date
+    (the scenario's year). None if the text gives no date."""
+    try:
+        if m := ISO_DATE.search(text):
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        if m := MONTH_DAY.search(text):
+            return date(SCENARIO_DATE.year, MONTHS[m.group(1).lower()], int(m.group(2)))
+        if m := DAY_MONTH.search(text):
+            return date(SCENARIO_DATE.year, MONTHS[m.group(2).lower()], int(m.group(1)))
+    except ValueError:  # "February 31"
+        return None
+    return None
 
 
 # ---------------------------------------------------------------- understand
@@ -274,12 +300,14 @@ def answer(conn, question: str, use_llm: bool | None = None) -> dict:
             steps.append(f"LLM planning failed ({llm_reason(error)}), using rules")
     if plan is None:
         plan = plan_with_rules(question, found)
+    start = parse_start(question)
+    plan["start"] = start or SCENARIO_DATE  # the scenario's "today" unless a date is given
     steps.append(f"Plan ({planned_by}): ports={plan['ports']} vessels={plan['vessels']} "
-                 f"days={plan['days']}{' (assumed)' if plan['days_assumed'] else ''}")
+                 f"days={plan['days']}{' (assumed)' if plan['days_assumed'] else ''} from {plan['start']}")
 
     # 2. Query the graph
-    results = [queries.port_closure(conn, code, plan["days"]) for code in plan["ports"]]
-    results += [queries.vessel_outage(conn, imo, plan["days"]) for imo in plan["vessels"]]
+    results = [queries.port_closure(conn, code, plan["days"], plan["start"]) for code in plan["ports"]]
+    results += [queries.vessel_outage(conn, imo, plan["days"], plan["start"]) for imo in plan["vessels"]]
     for r in results:
         if r["disruption"]["kind"] == "port_closure":
             r["best_diversion"] = mitigation.best_diversion(conn, r)

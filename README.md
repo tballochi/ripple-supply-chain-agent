@@ -1,5 +1,7 @@
 # Ripple
 
+[![tests](https://github.com/tballochi/ripple-supply-chain-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/tballochi/ripple-supply-chain-agent/actions/workflows/tests.yml)
+
 A supply chain disruption agent built on a [Relate](https://relatedb.ai) graph.
 Describe a disruption in plain English and Ripple walks the graph of ports,
 routes, vessels, shipments and customers to find who is affected, and shows

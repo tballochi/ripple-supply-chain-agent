@@ -26,20 +26,21 @@ CONSTRAINTS = {
 }
 
 
-def connect(read_only: bool = True) -> "relate.Connection":
+def connect(read_only: bool = True, path: Path | None = None) -> "relate.Connection":
     """Open the store. Readers (UI, agent) use read_only=True; only the
-    generator writes."""
+    generator writes. `path` defaults to the committed store."""
+    path = path or STORE_PATH
     if not read_only:
         # The JSON codec stores the graph as one readable graph.json file,
         # which is easier to inspect and to diff in git than Parquet.
         # It only applies when the store is first created.
         os.environ.setdefault("RELATE_SNAPSHOT_FORMAT", "json")
-        STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    elif not STORE_PATH.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+    elif not path.exists():
         raise FileNotFoundError(
-            f"No store at {STORE_PATH}. Run: python -m ripple.generate"
+            f"No store at {path}. Run: python -m ripple.generate"
         )
-    return relate.connect(str(STORE_PATH), read_only=read_only)
+    return relate.connect(str(path), read_only=read_only)
 
 
 def create_schema(conn) -> None:

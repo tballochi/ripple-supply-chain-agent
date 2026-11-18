@@ -11,10 +11,12 @@ The script has two halves:
   2. load()           -> writes those lists into Relate with Cypher
 """
 
+import json
 import math
 import random
 import shutil
 from datetime import date, timedelta
+from pathlib import Path
 
 from . import db, embeddings
 
@@ -368,11 +370,33 @@ LOAD_STEPS = [
 ]
 
 
-def load(data: dict) -> None:
+# Alert vectors, saved next to the store. Generating again reuses them, so
+# the store comes out identical on any machine, even without the model
+# (this is what lets CI check that the committed store is up to date).
+VECTOR_CACHE = db.STORE_PATH.parent / "alert_embeddings.json"
+
+
+def alert_vectors(texts: list[str]) -> list[list[float]] | None:
+    """One vector per text, from the cache when possible, else the model."""
+    cache = json.loads(VECTOR_CACHE.read_text()) if VECTOR_CACHE.exists() else {}
+    missing = [t for t in texts if t not in cache]
+    if missing:
+        computed = embeddings.embed(missing)
+        if computed is None:
+            print(f"[ripple] {len(missing)} alert(s) have no cached vector and the model is "
+                  "unavailable: the store gets no vector index.")
+            return None
+        cache.update(zip(missing, computed))
+        # Keep only the current texts, in a stable order, so diffs stay small.
+        VECTOR_CACHE.write_text(json.dumps({t: cache[t] for t in sorted(set(texts))}, indent=0) + "\n")
+    return [cache[t] for t in texts]
+
+
+def load(data: dict, path: Path = db.STORE_PATH) -> None:
     # Always rebuild from scratch so the store matches the script exactly.
-    if db.STORE_PATH.exists():
-        shutil.rmtree(db.STORE_PATH)
-    conn = db.connect(read_only=False)
+    if path.exists():
+        shutil.rmtree(path)
+    conn = db.connect(read_only=False, path=path)
     try:
         db.create_schema(conn)
         for key, cypher in LOAD_STEPS:
@@ -380,7 +404,7 @@ def load(data: dict) -> None:
 
         # Search indexes over the alert text. The vectors come from a local
         # model; without it we still build the full-text index.
-        vectors = embeddings.embed([a["text"] for a in data["alerts"]])
+        vectors = alert_vectors([a["text"] for a in data["alerts"]])
         if vectors:
             rows = [{"id": a["id"], "vector": v} for a, v in zip(data["alerts"], vectors)]
             conn.execute(
@@ -395,7 +419,7 @@ def load(data: dict) -> None:
             print(f"  {row['type']:<12}{row['n']:>5}")
     finally:
         conn.close()  # close() checkpoints: the graph is written to disk here
-    print(f"Store written to {db.STORE_PATH}")
+    print(f"Store written to {path}")
 
 
 if __name__ == "__main__":

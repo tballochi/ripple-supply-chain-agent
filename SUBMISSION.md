@@ -33,7 +33,7 @@ as a document and the same hybrid search, and the vessel-outage case shows where
 
 ### Accomplishments that we're proud of
 Every answer is explainable by a path. Every one of the 30 ports gives a real answer. Retrieval is
-measured on 33 questions (100% hybrid, 91% without the embedding model). 151 tests run in CI,
+measured on 33 questions (100% hybrid, 91% without the embedding model). 152 tests run in CI,
 including one that regenerates the store and checks it matches the committed one.
 
 ### What we learned

@@ -134,3 +134,14 @@ def test_combined_impact_counts_each_shipment_once(conn):
     for r in all_rows:
         worst[r["shipment"]] = max(worst.get(r["shipment"], 0), r["delay_days"])
     assert combined["max_delay_days"] == max(worst.values())
+
+
+def test_ripple_follows_several_supplier_tiers(conn):
+    result = queries.port_closure(conn, "NLRTM", 3)
+    deep = [r for r in result["downstream"] if r["supplier_hops"] >= 2]
+    assert deep, "the demo scenario must show a chain of at least two suppliers"
+    for r in deep:
+        assert r["path"].count("-[SUPPLIES]->") == r["supplier_hops"]
+        assert r["path_nodes"][-1]["name"] == r["customer"]
+    breached = {r["shipment"] for r in result["impacted"] if r["sla_breached"]}
+    assert {r["via_shipment"] for r in result["downstream"]} <= breached

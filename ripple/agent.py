@@ -163,10 +163,11 @@ def explain_with_rules(results: list, plan: dict) -> str:
         direct = {r["customer_id"] for r in result["impacted"]}
         only_downstream = [r for r in result["downstream"] if r["customer_id"] not in direct]
         if only_downstream:
-            first = only_downstream[0]
+            deepest = max(only_downstream, key=lambda r: r["supplier_hops"])
             lines.append(
-                f"Second-order effect: {s['downstream_customers']} more customer(s) depend on a "
-                f"manufacturer whose inputs are late, for example `{first['path']}`.")
+                f"Ripple effect: {s['downstream_customers']} more customer(s) depend on a supplier whose "
+                f"delivery is late, up to {deepest['supplier_hops']} supplier tier(s) away, for example "
+                f"`{deepest['path']}`.")
         best = result.get("best_diversion")
         if best and not best["breaches_avoided"]:
             lines.append(
@@ -197,7 +198,7 @@ You receive JSON facts computed from a graph database. Rules:
 - Start with the headline: what is disrupted and the overall impact.
 - Then name the 2 or 3 most exposed shipments. For each, quote its `path`
   exactly, in backticks, to show how the disruption reaches the customer.
-- Mention `second_order_customers` (reached only through a supplier), and the best diversion
+- Mention `second_order_customers` (reached only through suppliers, `supplier_hops` tiers away), and the best diversion
   (`best_diversion`) with what it saves, when present.
 - If `days_assumed` is true, say the duration was assumed.
 - Plain language, under 180 words, Markdown allowed."""
@@ -211,7 +212,7 @@ def second_order_examples(result: dict, limit: int = 3) -> list:
         if row["customer_id"] in direct or row["customer_id"] in seen:
             continue
         seen.add(row["customer_id"])
-        out.append({k: row[k] for k in ("customer", "via_customer", "delay_days", "path")})
+        out.append({k: row[k] for k in ("customer", "via_customer", "supplier_hops", "delay_days", "path")})
     return out[:limit]
 
 

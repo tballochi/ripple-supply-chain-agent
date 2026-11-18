@@ -76,13 +76,16 @@ RETURN {PATH_COLUMNS},
   {SHIPMENT_COLUMNS}
 """
 
-# One more hop: buyers supplied by a manufacturer whose inputs are late.
+# The ripple: from a customer whose delivery is late beyond its tolerance,
+# follow SUPPLIES 1 to 3 times (a variable-length path) to the companies it
+# supplies, and the companies those supply.
 DOWNSTREAM = f"""
 UNWIND $late AS item
-MATCH p = (s:Shipment {{id: item.shipment}})-[:FOR]->(maker:Customer)-[:SUPPLIES]->(buyer:Customer)
+MATCH p = (s:Shipment {{id: item.shipment}})-[:FOR]->(:Customer)-[:SUPPLIES*1..3]->(buyer:Customer)
 RETURN {PATH_COLUMNS},
   buyer.id AS customer_id, buyer.name AS customer, buyer.tier AS tier,
-  maker.name AS via_customer, s.id AS via_shipment, item.delay_days AS delay_days
+  nodes(p)[-2].name AS via_customer, s.id AS via_shipment, item.delay_days AS delay_days,
+  length(p) - 1 AS supplier_hops
 """
 
 # Nearby ports that could take the cargo instead. `shared_routes` lists the
@@ -137,13 +140,13 @@ def _analyze(conn, impact_rows: list, alternatives: list, disruption: dict) -> d
     impacted.sort(key=lambda r: (-r["score"], -r["value_usd"], r["shipment"]))
 
     late_inputs = [{"shipment": r["shipment"], "delay_days": r["delay_days"]}
-                   for r in impacted if r["customer_kind"] == "manufacturer" and r["sla_breached"]]
+                   for r in impacted if r["sla_breached"]]
     downstream = []
     for row in conn.execute(DOWNSTREAM, {"late": late_inputs}):
         row = dict(row)
         row["path"] = path_text(row["path_nodes"], row["path_rels"])
         downstream.append(row)
-    downstream.sort(key=lambda r: (-r["delay_days"], r["customer"], r["via_shipment"]))
+    downstream.sort(key=lambda r: (r["supplier_hops"], -r["delay_days"], r["customer"], r["via_shipment"]))
 
     return {
         "disruption": disruption,
@@ -229,7 +232,7 @@ def print_report(result: dict, top: int = 8) -> None:
         print(f"         why:  {r['reason']}")
         print(f"         path: {r['path']}")
     if result["downstream"]:
-        print(f"\nSecond-order impact ({s['downstream_customers']} customers supplied by a late manufacturer):")
+        print(f"\nRipple effect ({s['downstream_customers']} more customers supplied by a late customer):")
         for r in result["downstream"][:top]:
             print(f"  {r['customer']}: +{r['delay_days']}d exposure\n         path: {r['path']}")
     if result["alternatives"]:

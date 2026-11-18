@@ -71,7 +71,7 @@ def show_comparison(question: str, results: list) -> None:
         {"": "Delayed shipments found", "Ripple (graph)": g["shipments"], "Plain RAG": r["shipments_found"]},
         {"": "Shipments named but not delayed", "Ripple (graph)": 0, "Plain RAG": r["shipments_wrong"]},
         {"": "Affected customers found", "Ripple (graph)": g["customers"], "Plain RAG": r["customers_found"]},
-        {"": "Second-order customers found", "Ripple (graph)": g["second_order_customers"],
+        {"": "Customers reached via suppliers", "Ripple (graph)": g["second_order_customers"],
          "Plain RAG": r["second_order_found"]},
         {"": "Answers explained by a path", "Ripple (graph)": g["paths"], "Plain RAG": r["paths"]},
     ]), hide_index=True, width="stretch")
@@ -137,7 +137,7 @@ def show_result(result: dict, key: str) -> None:
     cols[1].metric("Customers affected", s["customers"])
     cols[2].metric("Beyond tolerance", s["sla_breaches"])
     cols[3].metric("Cargo value", agent.money(s["value_at_risk_usd"]))
-    cols[4].metric("Second-order customers", s["downstream_customers"])
+    cols[4].metric("Customers via suppliers", s["downstream_customers"])
 
     impacted = result["impacted"]
     if not impacted:
@@ -145,7 +145,7 @@ def show_result(result: dict, key: str) -> None:
         return
 
     tab_list, tab_graph, tab_downstream, tab_mitigation = st.tabs(
-        ["Impacted shipments", "Impact graph", "Second-order impact",
+        ["Impacted shipments", "Impact graph", "Ripple effect",
          "Mitigation" if d["kind"] == "port_closure" else "Alternatives"])
 
     with tab_list:
@@ -198,13 +198,16 @@ def show_result(result: dict, key: str) -> None:
 
     with tab_downstream:
         if result["downstream"]:
-            st.markdown("Buyers supplied by a manufacturer whose inputs arrive later than it tolerates.")
+            st.markdown("Companies supplied by a customer whose delivery is later than it tolerates, "
+                        "followed up to 3 supplier tiers with a variable-length path "
+                        "(`-[:SUPPLIES*1..3]->`).")
             st.dataframe(pd.DataFrame([{
-                "Customer": r["customer"], "Tier": r["tier"], "Supplied by": r["via_customer"],
-                "Late shipment": r["via_shipment"], "Exposure (days)": r["delay_days"], "Path": r["path"],
+                "Customer": r["customer"], "Tier": r["tier"], "Supplier tiers away": r["supplier_hops"],
+                "Supplied by": r["via_customer"], "Late shipment": r["via_shipment"],
+                "Exposure (days)": r["delay_days"], "Path": r["path"],
             } for r in result["downstream"]]), hide_index=True, width="stretch")
         else:
-            st.info("No second-order impact.")
+            st.info("No ripple effect: no late customer supplies another company.")
 
     with tab_mitigation:
         if result["alternatives"]:

@@ -39,7 +39,7 @@ def test_port_closure_page_shows_the_impact():
     page = render("Port of Rotterdam closed for 3 days")
     metrics = {m.label: m.value for m in page.metric}
     assert metrics["Shipments late"] == str(expected["shipments"])
-    assert metrics["Second-order customers"] == str(expected["downstream_customers"])
+    assert metrics["Customers via suppliers"] == str(expected["downstream_customers"])
 
 
 @pytest.mark.parametrize("question", [

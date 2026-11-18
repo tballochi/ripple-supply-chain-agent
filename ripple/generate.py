@@ -130,6 +130,8 @@ COMPANY_WORDS = ["Nordwind", "Altamira", "Kestrel", "Brightwell", "Solvane", "Or
                  "Oakhurst", "Pinecrest"]
 MAKER_SUFFIXES = ["Manufacturing", "Industries", "Works", "Assembly"]
 BUYER_SUFFIXES = ["Retail", "Trading", "Distribution", "Stores", "Supply"]
+DISTRIBUTOR_SUFFIXES = ("Trading", "Distribution", "Supply")
+RETAILER_SUFFIXES = ("Retail", "Stores")
 CUSTOMER_COUNTRIES = ["Germany", "France", "Netherlands", "United Kingdom", "Spain", "Italy",
                       "United States", "Brazil", "Japan", "Singapore", "India", "United Arab Emirates"]
 
@@ -266,8 +268,17 @@ def build_dataset() -> dict:
     buyers = [c["id"] for c in customers if c["kind"] == "buyer"]
 
     # SUPPLIES: a manufacturer feeds 1 to 3 buyers. If its inputs arrive
-    # late, those buyers are exposed too. This is the second-order "ripple".
+    # late, those buyers are exposed too: the ripple.
     supplies = [dict(a=m, b=b) for m in makers for b in rng.sample(buyers, rng.randint(1, 3))]
+    # Second tier: distributors (Trading, Distribution, Supply) feed retailers
+    # (Retail, Stores), so a late input can travel maker -> distributor ->
+    # retailer. A separate random generator keeps the rest of the data as is.
+    tier_rng = random.Random(SEED + 1)
+    by_id = {c["id"]: c for c in customers}
+    distributors = [c for c in buyers if by_id[c]["name"].endswith(DISTRIBUTOR_SUFFIXES)]
+    retailers = [c for c in buyers if by_id[c]["name"].endswith(RETAILER_SUFFIXES)]
+    supplies += [dict(a=d, b=r) for d in distributors
+                 for r in tier_rng.sample(retailers, tier_rng.randint(1, 3))]
 
     # Shipments: each one travels on a vessel between two calls of its route
     # (origin index o, destination index d, with o < d).

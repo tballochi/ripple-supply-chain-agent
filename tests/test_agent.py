@@ -117,3 +117,10 @@ def test_explanation_names_the_best_diversion(conn):
     best = out["results"][0]["best_diversion"]
     assert best and f"divert to {best['fallback']['name']}" in out["explanation"]
     assert f"avoids {best['breaches_avoided']} of" in out["explanation"]
+
+
+def test_explanation_is_honest_when_a_diversion_avoids_no_breach(conn):
+    out = agent.answer(conn, "A ship is stuck at the entrance of the Suez canal for a week", use_llm=False)
+    best = out["results"][0]["best_diversion"]
+    assert best and best["breaches_avoided"] == 0
+    assert "avoids none of the" in out["explanation"] and "protects" not in out["explanation"]

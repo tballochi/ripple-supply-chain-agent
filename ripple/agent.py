@@ -149,7 +149,12 @@ def explain_with_rules(results: list, plan: dict) -> str:
                 f"Second-order effect: {s['downstream_customers']} more customer(s) depend on a "
                 f"manufacturer whose inputs are late, for example `{first['path']}`.")
         best = result.get("best_diversion")
-        if best:
+        if best and not best["breaches_avoided"]:
+            lines.append(
+                f"Best mitigation: divert to {best['fallback']['name']} ({best['fallback']['km']} km away). "
+                f"It shortens the delay of {best['shipments_rescued']} shipments but avoids none of the "
+                f"{best['before']['sla_breaches']} tolerance breaches.")
+        elif best:
             lines.append(
                 f"Best mitigation: divert to {best['fallback']['name']} ({best['fallback']['km']} km away). "
                 f"It rescues {best['shipments_rescued']} shipments, avoids {best['breaches_avoided']} of "

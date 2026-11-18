@@ -1,29 +1,40 @@
-<p align="center"><img src="assets/logo.svg" width="128" alt="Ripple logo: a disruption rippling across a spider web"></p>
+<p align="center"><img src="assets/logo.svg" width="112" alt="Ripple logo: a silver spider web with a red node where a disruption starts"></p>
 
-# Ripple
+<h1 align="center">Ripple</h1>
 
-[![tests](https://github.com/tballochi/ripple-supply-chain-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/tballochi/ripple-supply-chain-agent/actions/workflows/tests.yml)
+<p align="center"><b>When a port closes, who is hurt three hops away?</b><br>
+A supply chain disruption agent on a <a href="https://relatedb.ai">Relate</a> graph.</p>
 
-**Describe a supply chain disruption in plain English. Ripple walks a [Relate](https://relatedb.ai)
-graph of ports, vessels, shipments and customers, finds everyone affected several hops away,
-shows the exact path behind each answer, and simulates the best diversion.**
+<p align="center">
+<a href="https://github.com/tballochi/ripple-supply-chain-agent/actions/workflows/tests.yml"><img src="https://github.com/tballochi/ripple-supply-chain-agent/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
+· <b>Live demo:</b> <i>coming soon</i> · <b>Video:</b> <i>coming soon</i> · Relate by Neo4j Hackathon
+</p>
 
 ![Ripple demo: Rotterdam closed for 3 days](docs/demo.gif)
 
-**Live demo:** _coming soon (Streamlit Community Cloud)_ · Built for the Relate by Neo4j Hackathon ·
-All data is synthetic.
+## In 30 seconds
+
+- **Ask in plain English**: "Port of Rotterdam closed for 3 days", "the ransomware attack in Korea",
+  "typhoon in the South China Sea", then follow up: "and if it lasts a week?".
+- **Ripple walks the graph**: port → routes → vessels due during the closure → cargo on board or not
+  loaded yet → customers → the companies they supply, up to 3 supplier tiers. Every answer comes
+  with **the exact path** that explains it.
+- **It finds 29 delayed shipments where plain RAG finds 1**, on the same data and the same question.
+- **It acts**: a risk radar ranks today's news by exposure before you ask, a simulator finds the
+  best diversion (Rotterdam → Hamburg protects $2.9M), and kept plans are written back to the graph.
+- **It runs anywhere**: 5 commands, no database server, no API key needed (an LLM is optional),
+  and every capability is also an **MCP server** for other agents. All data is synthetic.
 
 ## Why a graph
 
-"Port of Rotterdam closed for 3 days." The shipments that will be late are not the ones whose
-documents mention Rotterdam. They are the ones on **vessels** sailing **routes** that call at
-Rotterdam **during those 3 days**, still carrying cargo to Rotterdam **or a later port**. Then come
-the **customers** waiting for that cargo, and the **companies they supply**, up to three supplier
-tiers away. That is a 4 to 7 hop question.
+"Port of Rotterdam closed for 3 days." The late shipments are not the ones whose documents mention
+Rotterdam. They are the ones on **vessels** sailing **routes** that call at Rotterdam **during those
+3 days**, still carrying cargo to Rotterdam **or a later port**. Then come the **customers** waiting
+for that cargo, and the **companies they supply**. That is a 4 to 7 hop question.
 
-Ripple answers the same question both ways, on the same data, in the **Graph vs plain RAG** tab.
-Plain RAG gets every record (shipments, vessels, routes, customers, ports, news) as a text
-document and the same hybrid word + meaning search, and retrieves the top 10:
+Ripple answers each question both ways, in the **Graph vs plain RAG** tab. Plain RAG gets every
+record (shipments, vessels, routes, customers, ports, news) as a text document and the same hybrid
+word + meaning search, and retrieves the top 10:
 
 | Question | | Delayed shipments | Affected customers | Customers via suppliers | Explained by a path |
 |---|---|---:|---:|---:|---:|
@@ -38,87 +49,21 @@ document and the same hybrid word + meaning search, and retrieves the top 10:
 | MV Silver Spirit is out of service for 4 days | **Ripple** | **5** | **5** | **8** | **5** |
 | | plain RAG | 5 | 5 | 0 | 0 |
 
-The last row is the honest control: a vessel's shipments are one hop away, so plain RAG finds
-them too. It still cannot reach the companies those customers supply, or explain why. Run it
-yourself: `python -m ripple.plain_rag "Port of Rotterdam closed for 3 days"`.
+The last row is the honest control: a vessel's shipments are one hop away, so plain RAG finds them
+too. It still cannot reach the companies those customers supply, or explain why.
+Reproduce it: `python -m ripple.plain_rag "Port of Rotterdam closed for 3 days"`.
 
-### And retrieval itself is measured
-
-`python -m ripple.evaluate` runs 33 questions with known answers through four set-ups. The vector
-index is what finds incidents described without any port name; the full-text index keeps the app
-above 90% when the embedding model is unavailable (that fallback is checked in CI):
+**Retrieval is measured too.** `python -m ripple.evaluate` runs 33 questions with known answers:
 
 | Set-up | Port or vessel named | Country, sea area, radius | News incident, no port named | Pasted headline | Off-topic (must find nothing) | **All** |
 |---|---:|---:|---:|---:|---:|---:|
-| names only | 5/5 | 5/5 | 3/12 | 0/5 | 6/6 | **19/33 (58%)** |
-| + full-text index | 5/5 | 5/5 | 9/12 | 5/5 | 6/6 | **30/33 (91%)** |
-| + vector index | 5/5 | 5/5 | 12/12 | 5/5 | 6/6 | **33/33 (100%)** |
-| hybrid (Ripple) | 5/5 | 5/5 | 12/12 | 5/5 | 6/6 | **33/33 (100%)** |
+| names only | 5/5 | 5/5 | 3/12 | 0/5 | 6/6 | **58%** |
+| + full-text index | 5/5 | 5/5 | 9/12 | 5/5 | 6/6 | **91%** |
+| + vector index | 5/5 | 5/5 | 12/12 | 5/5 | 6/6 | **100%** |
+| hybrid (Ripple) | 5/5 | 5/5 | 12/12 | 5/5 | 6/6 | **100%** |
 
-## What it does
-
-1. **Understands the question.** It matches ports, vessels and countries by name, sea areas and
-   radii with geospatial queries ("typhoon in the South China Sea", "within 500 km of Singapore"),
-   and news incidents with hybrid retrieval (full-text + vector in Relate), then follows
-   `(Alert)-[:MENTIONS]->(Port)`. "The ransomware attack in Korea" names no port; the alert does.
-2. **Walks the graph.** A Cypher query goes `Port <- Route <- Vessel <- Shipment -> Customer`,
-   checks the dates and the order of port calls, and tells cargo **on board** from cargo
-   **not loaded yet**. A variable-length path, `-[:SUPPLIES*1..3]->`, follows the ripple to the
-   companies those customers supply. Several ports at once are combined, each shipment counted once.
-3. **Ranks and explains.** Score = days late × priority × customer tier, doubled beyond the
-   customer's tolerance. Every line comes with its path, e.g.
-   `Rotterdam <-[CALLS_AT]- North Europe Feeder <-[SAILS]- MV Northern Breeze <-[ON_VESSEL]- S0138 -[FOR]-> Tessera Retail`.
-4. **Simulates a mitigation.** Pick a nearby port (`NEAR`) and see before/after: Rotterdam →
-   Hamburg rescues 13 shipments, avoids 8 of 14 tolerance breaches and protects $2.9M of cargo.
-5. **Holds a conversation.** "And if it lasts a week?", "what about Antwerp instead?", "and
-   Hamburg too?" reuse, replace or extend the previous scenario. A sidebar form builds a scenario
-   (port or vessel, duration, start date) without typing.
-6. **Works with or without an LLM.** With a free Groq key, the LLM picks the query and writes the
-   explanation from the returned paths only (a shipment it invents is rejected). It also answers
-   free questions about the data ("which customers buy sneakers?") with Cypher it writes, which
-   is checked with `EXPLAIN` and refused unless read-only. Without a key, a deterministic
-   rule-based mode gives the same disruption analysis.
-7. **Shows the graph.** An interactive view (drag, zoom, click a node to see its neighbours) of
-   everything a disruption reaches.
-8. **Serves any agent over MCP.** The graph is exposed as 8 read-only tools.
-
-## Architecture
-
-```mermaid
-flowchart LR
-    Q["Question in plain English<br/>(or a follow-up)"] --> R["Retrieval<br/>names, sea areas (point.distance)<br/>hybrid search over alerts (full-text + vector, RRF)"]
-    R --> P{"Plan<br/>LLM, rules or follow-up"}
-    P -->|port_closure| G["Graph queries (Cypher)<br/>multi-hop impact + paths<br/>ripple via SUPPLIES*1..3"]
-    P -->|vessel_outage| G
-    P -->|free question| L["LLM-written Cypher<br/>checked with EXPLAIN, read-only"]
-    L --> UI
-    G --> M["Mitigation<br/>best diversion via NEAR + CALLS_AT"]
-    M --> E["Explanation<br/>LLM grounded on paths, or rules"]
-    E --> UI["Streamlit UI"]
-    G --> B["Plain RAG baseline<br/>same data as text, top-k"]
-    B --> UI
-    DB[("Relate store<br/>data/ripple.relate")] --- R
-    DB --- G
-    DB --- MCP["MCP server<br/>8 read-only tools"]
-    MCP --> A["Any MCP agent<br/>Claude Code, Cursor..."]
-```
-
-## Graph model
-
-423 nodes, 1,536 relationships, generated by `ripple/generate.py` with a fixed seed.
-
-```mermaid
-flowchart LR
-    Shipment["Shipment (200)"] -->|ON_VESSEL| Vessel["Vessel (40)"]
-    Vessel -->|SAILS| Route["Route (14)"]
-    Route -->|"CALLS_AT {seq, day} (75)"| Port["Port (30)<br/>location: point"]
-    Port -->|"NEAR {km} (102)"| Port
-    Shipment -->|ORIGIN / DESTINATION| Port
-    Shipment -->|FOR| Customer["Customer (60)"]
-    Customer -->|"SUPPLIES (72)"| Customer
-    Shipment -->|"CONTAINS {qty} (397)"| Product["Product (25)"]
-    Alert["Alert (54)"] -->|"MENTIONS (50)"| Port
-```
+The vector index finds incidents described without any port name; the full-text index keeps Ripple
+above 90% when the embedding model is unavailable (checked in CI).
 
 ## Setup (5 commands)
 
@@ -130,30 +75,86 @@ python -m ripple.embeddings --download                  # optional: ~70 MB model
 streamlit run app.py
 ```
 
-No database to start and no key needed: the Relate store is committed in `data/ripple.relate`.
-For the LLM mode, `cp .env.example .env` and add a free Groq key (or a Mistral key).
-To rebuild the data: `python -m ripple.generate`. To run the 138 tests: `python -m pytest`.
+The Relate store is committed in `data/ripple.relate`: nothing to start or load. For the LLM mode,
+`cp .env.example .env` and add a free Groq key. Tests: `python -m pytest` (151 tests, run in CI on
+Python 3.12 and 3.13 with a lint step and a check that the committed store matches the generator).
 
-## Example questions
+## Try these
 
-- `Port of Rotterdam closed for 3 days`
-- `Typhoon near Shanghai, terminals shut for 5 days`
-- `The ransomware attack in Korea` (no port named: found through a news alert)
-- `A ship is stuck at the entrance of the Suez canal for a week`
-- `MV Silver Spirit is out of service for 4 days`
-- `Typhoon in the South China Sea`, `storm within 500 km of Singapore` (geography)
-- `Hurricane in the Gulf of Mexico` (no port of the graph there: Ripple says so and names the closest)
-- `Strike in the Netherlands` or `ports in China closed for 2 days` (country matching)
-- Follow-ups: `and if it lasts a week?`, `what about Antwerp instead?`, `and Hamburg too?`
-- With an LLM key: `which customers buy sneakers?`, `which strategic customers are in Germany?`
+| Question | Shows |
+|---|---|
+| `Port of Rotterdam closed for 3 days` | 4-hop impact, on board vs not loaded yet, ripple through suppliers, best diversion |
+| then `and if it lasts a week?`, `what about Antwerp instead?`, `and Hamburg too?` | follow-ups that reuse, replace or extend the scenario |
+| `The ransomware attack in Korea` | no port named: hybrid search finds the news alert, `MENTIONS` leads to Busan |
+| `Typhoon in the South China Sea`, `storm within 500 km of Singapore` | geography with Relate point values |
+| `Hurricane in the Gulf of Mexico` | no port of the graph there: Ripple says so and names the closest |
+| `MV Silver Spirit is out of service for 4 days` | a vessel outage |
+| `Which customers buy sneakers?` (LLM mode) | a free question answered with checked, read-only Cypher |
 
-The same analysis from the terminal:
+Or open the app with no question: the **risk radar** lists today's alerts by exposure, each with an
+**Analyze** button.
 
-```bash
-python -m ripple.agent "Port of Rotterdam closed for 3 days"
-python -m ripple.mitigation Rotterdam Hamburg 3
-python -m ripple.plain_rag "The ransomware attack in Korea"
-python -m ripple.evaluate                     # retrieval scores
+## What it does
+
+1. **Understands the question.** Port, vessel and country names; sea areas and radii with
+   `point.distance()`; news incidents with hybrid retrieval (Relate's full-text and vector indexes,
+   fused by reciprocal rank), then `(Alert)-[:MENTIONS]->(Port)`. Follow-ups reuse the last plan.
+2. **Walks the graph.** One Cypher query goes `Port <- Route <- Vessel <- Shipment -> Customer`,
+   computes each vessel's arrival from its voyage start and the route's port calls, and keeps the
+   cargo still to be delivered there or later. A variable-length path `-[:SUPPLIES*1..3]->`
+   follows the ripple. Several ports at once are combined, each shipment counted once.
+3. **Ranks and explains.** Score = days late × priority × customer tier, doubled beyond the
+   customer's tolerance. With an LLM (Groq free tier), the model picks one of two fixed queries and
+   writes the explanation from the returned paths only; an invented shipment gets the text rejected.
+   Without a key, a deterministic rule-based mode gives the same analysis.
+4. **Acts.** The diversion simulator uses `NEAR` and shared routes (`CALLS_AT`) to compute
+   before/after delays, breaches avoided and extra distance. The risk radar runs that analysis on
+   every serious alert of the last 3 days.
+5. **Remembers.** Analyses become `(:Episode)-[:ABOUT]->(:Port)` and kept diversions become
+   `(:Plan)-[:RESCUES]->(:Shipment)` in a writable copy of the graph, so the agent recalls earlier
+   analyses and the decision log shows the customers each plan protects.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Q["Question<br/>(or a follow-up)"] --> R["Retrieval<br/>names, sea areas (point.distance)<br/>hybrid alert search (full-text + vector, RRF)"]
+    R --> P{"Plan<br/>LLM, rules or follow-up"}
+    P -->|port_closure / vessel_outage| G["Graph queries (Cypher)<br/>multi-hop impact + paths<br/>ripple via SUPPLIES*1..3"]
+    P -->|free question| L["LLM-written Cypher<br/>checked with EXPLAIN, read-only"]
+    G --> M["Mitigation<br/>best diversion via NEAR + CALLS_AT"]
+    M --> E["Explanation<br/>LLM grounded on paths, or rules"]
+    G --> B["Plain RAG baseline<br/>same data as text, top-k"]
+    E --> UI["Streamlit UI<br/>radar · impact · graph · RAG · mitigation"]
+    B --> UI
+    L --> UI
+    DB[("Relate store, read-only<br/>data/ripple.relate")] --- R
+    DB --- G
+    WS[("Workspace copy, writable<br/>Episodes + Plans")] --- UI
+    DB --- MCP["MCP server<br/>11 read-only tools"]
+    WS --- MCP
+    MCP --> A["Any MCP agent"]
+```
+
+## Graph model
+
+423 nodes and 1,536 relationships, generated by `ripple/generate.py` with a fixed seed. The
+workspace copy adds the agent's `Episode` and `Plan` nodes.
+
+```mermaid
+flowchart LR
+    Shipment["Shipment (200)"] -->|ON_VESSEL| Vessel["Vessel (40)"]
+    Vessel -->|SAILS| Route["Route (14)"]
+    Route -->|"CALLS_AT {seq, day} (75)"| Port["Port (30)<br/>location: point"]
+    Port -->|"NEAR {km} (102)"| Port
+    Shipment -->|ORIGIN / DESTINATION| Port
+    Shipment -->|FOR| Customer["Customer (60)"]
+    Customer -->|"SUPPLIES (72)"| Customer
+    Shipment -->|"CONTAINS {qty} (397)"| Product["Product (25)"]
+    Alert["Alert (54)<br/>embedding: vector"] -->|"MENTIONS (50)"| Port
+    Episode["Episode (workspace)"] -.->|ABOUT| Port
+    Plan["Plan (workspace)"] -.->|"DIVERTS_FROM / DIVERTS_TO"| Port
+    Plan -.->|RESCUES| Shipment
 ```
 
 ## How Relate is used
@@ -161,62 +162,80 @@ python -m ripple.evaluate                     # retrieval scores
 | Relate feature | Where |
 |---|---|
 | Embedded store, directory layout with the readable JSON codec, opened read-only by the app | `ripple/db.py`, `data/ripple.relate` |
-| Uniqueness constraints (one per label, backing the key lookups) | `ripple/db.py` |
-| Batch loading with `UNWIND $rows ... CREATE` | `ripple/generate.py` |
-| Typed vectors: `vector(r.vector, 384, FLOAT32)` | `ripple/generate.py` |
-| `CREATE VECTOR INDEX` and `CREATE FULLTEXT INDEX` on alerts | `ripple/db.py` |
-| `SEARCH ... IN (VECTOR INDEX / FULLTEXT INDEX ...) SCORE AS`, fused by reciprocal rank in `CALL () { ... UNION ALL ... }` | `ripple/retrieval.py` |
+| A second, writable copy for memory and decisions, read while another session writes | `ripple/workspace.py` |
 | Multi-hop pattern with a path variable, `nodes(p)`, `relationships(p)`, `startNode()` to return the explanation | `ripple/queries.py` |
-| Variable-length path `-[:SUPPLIES*1..3]->` with `length(p)` for the ripple through suppliers | `ripple/queries.py` |
-| Date arithmetic: `v.voyage_start + duration({days: call.day})`, `duration.inDays()` | `ripple/queries.py` |
-| Spatial values `point({latitude, longitude})`, `CREATE POINT INDEX`, `point.distance()` | `ripple/generate.py`, `ripple/db.py`, `ripple/retrieval.py` |
+| Variable-length path `-[:SUPPLIES*1..3]->` with `length(p)` | `ripple/queries.py` |
+| `CREATE VECTOR INDEX`, `CREATE FULLTEXT INDEX`, `SEARCH ... SCORE AS`, fused in `CALL () { ... UNION ALL ... }` | `ripple/db.py`, `ripple/retrieval.py` |
+| Typed vectors `vector(r.vector, 384, FLOAT32)` | `ripple/generate.py` |
+| Spatial values `point({latitude, longitude})`, `CREATE POINT INDEX`, `point.distance()` | `ripple/generate.py`, `ripple/retrieval.py` |
+| Date arithmetic `v.voyage_start + duration({days: call.day})`, `duration.inDays()` | `ripple/queries.py` |
+| `COLLECT { }` and `EXISTS { }` subqueries, `FOREACH`, `UNWIND $rows ... CREATE` | across `ripple/` |
 | `EXPLAIN` to check LLM-written Cypher (syntax and read-only query type) before it runs | `ripple/lookup.py` |
-| `COLLECT { ... }` and `EXISTS { ... }` subqueries | `ripple/queries.py`, `ripple/plain_rag.py`, `ripple/mitigation.py` |
-| `CALL db.schema.nodeTypeProperties()` for the schema given to agents and the LLM | `ripple/mcp_server.py`, `ripple/lookup.py` |
+| `CALL db.schema.nodeTypeProperties()` for the schema given to the LLM and to MCP agents | `ripple/lookup.py`, `ripple/mcp_server.py` |
+| Uniqueness constraints on every key | `ripple/db.py` |
 
-### MCP
+<details>
+<summary><b>MCP server: 11 read-only tools</b></summary>
 
-Register the server in any MCP client (a `.mcp.json` is included for Claude Code):
+Register it in any MCP client (a `.mcp.json` is included for Claude Code):
 
 ```json
 { "mcpServers": { "ripple": { "command": ".venv/bin/python", "args": ["-m", "ripple.mcp_server"] } } }
 ```
 
-Tools: `analyze_disruption`, `port_closure_impact`, `vessel_outage_impact`, `simulate_diversion`,
-`compare_with_plain_rag`, `search_alerts`, `get_schema`, `read_cypher`. All are read-only.
-Relate also ships its own generic MCP server with the `relate` CLI
-(`relate serve --mcp stdio --database data/ripple.relate --read-only`); Ripple's server adds the
-domain tools on top.
+`analyze_disruption`, `port_closure_impact`, `vessel_outage_impact`, `simulate_diversion`,
+`compare_with_plain_rag`, `risk_radar`, `recall_analyses`, `list_plans`, `search_alerts`,
+`get_schema`, `read_cypher`. Each impacted shipment comes with its `path`, so the calling agent can
+explain its answer too.
+</details>
 
-## Project layout
+<details>
+<summary><b>Command line</b></summary>
+
+```bash
+python -m ripple.agent "Port of Rotterdam closed for 3 days"   # full answer (add --no-llm)
+python -m ripple.radar                                         # today's alerts by exposure
+python -m ripple.mitigation Rotterdam Hamburg 3                # one diversion, before/after
+python -m ripple.plain_rag "The ransomware attack in Korea"    # graph vs plain RAG
+python -m ripple.evaluate                                      # retrieval scores
+python -m ripple.lookup "which customers buy sneakers?"        # free question (LLM key needed)
+python -m ripple.generate                                      # rebuild the data
+```
+</details>
+
+<details>
+<summary><b>Project layout</b></summary>
 
 ```
 ripple/generate.py     synthetic data + load into Relate
-ripple/queries.py      multi-hop impact queries, paths, ranking
+ripple/queries.py      multi-hop impact queries, paths, ranking, combined disruptions
 ripple/retrieval.py    free text -> ports / vessels (names, geography, hybrid alert search)
+ripple/agent.py        understand -> query -> explain, LLM or rules, follow-ups, memory
 ripple/mitigation.py   diversion simulator
-ripple/plain_rag.py    plain RAG baseline for the comparison
-ripple/agent.py        understand -> query -> explain, LLM or rules, follow-ups
+ripple/radar.py        risk radar of today's alerts
+ripple/workspace.py    writable copy of the graph: Episodes and Plans
 ripple/lookup.py       free questions: LLM-written, checked, read-only Cypher
+ripple/plain_rag.py    plain RAG baseline for the comparison
 ripple/evaluate.py     retrieval scores on 33 questions
 ripple/viz.py          static and interactive graph drawings
 ripple/mcp_server.py   MCP tools
 app.py                 Streamlit UI
-tests/                 138 tests, run in CI on every push
+tests/                 151 tests
 ```
+</details>
 
 ## Limitations and next steps
 
-- **Synthetic data.** Real port names and coordinates, invented everything else. The scenario's
+- **Synthetic data.** Real port names and coordinates, everything else invented. The scenario's
   "today" is fixed at 1 December 2026 so every run gives the same answers.
-- **A deliberately simple delay model.** A vessel waits until the port reopens; no berth queues,
-  no capacity, no knock-on congestion after reopening. Diversions use fixed speeds (800 km/day at
-  sea, 500 km/day by road or feeder, transfers up to 600 km).
-- **Current voyages only.** The graph holds the vessels' current voyages, so a closure starting
-  later than early December finds fewer vessels scheduled.
-- **Several disruptions at once** are combined with each shipment's largest delay, not the sum.
-- **Next:** live AIS vessel positions, inventory buffers at customers, and writing the chosen
-  mitigation back to the graph as a plan.
+- **A deliberately simple delay model.** A vessel waits until the port reopens; no berth queues or
+  knock-on congestion. Diversions use fixed speeds (800 km/day at sea, 500 km/day by road or feeder,
+  transfers up to 600 km). Several disruptions are combined with each shipment's largest delay.
+- **Current voyages only.** A closure starting after early December finds fewer vessels scheduled.
+- **The workspace is local.** Plans and memory live in `.ripple/` on the machine running the app
+  (on a hosted demo, until it restarts).
+- **Next:** live vessel positions (AIS), inventory buffers at customers, and plans that update the
+  vessels' schedules.
 
 ## AI tools used
 

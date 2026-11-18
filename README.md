@@ -182,7 +182,7 @@ tests/                 95 tests, run in CI on every push
 - **The code, tests and documentation were written with [Claude Code](https://claude.com/claude-code)**
   (Anthropic), working under my direction milestone by milestone. I reviewed and can explain
   every part.
-- **At runtime, optionally:** an LLM through the free tier of Groq (`llama-3.3-70b-versatile`) or
+- **At runtime, optionally:** an LLM through the free tier of Groq (`openai/gpt-oss-120b`) or
   Mistral (`mistral-small-latest`) for planning and explanations.
 - **Embeddings:** `BAAI/bge-small-en-v1.5`, run locally with fastembed.
 

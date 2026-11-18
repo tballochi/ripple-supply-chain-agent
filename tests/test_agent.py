@@ -124,3 +124,22 @@ def test_explanation_is_honest_when_a_diversion_avoids_no_breach(conn):
     best = out["results"][0]["best_diversion"]
     assert best and best["breaches_avoided"] == 0
     assert "avoids none of the" in out["explanation"] and "protects" not in out["explanation"]
+
+
+def test_llm_facts_list_only_true_second_order_customers(conn):
+    out = agent.answer(conn, "Port of Rotterdam closed for 3 days", use_llm=False)
+    facts = agent.facts_for_llm(out["results"], out["plan"])["analyses"][0]
+    direct = {r["customer"] for r in out["results"][0]["impacted"]}
+    names = [r["customer"] for r in facts["second_order_customers"]]
+    assert names and len(names) == len(set(names)) and not set(names) & direct
+
+
+def test_rate_limit_fallback_is_explained(conn, monkeypatch):
+    def limited(*args, **kwargs):
+        raise llm.LLMError("rate limit of the free tier reached, try again in a minute")
+    monkeypatch.setattr(llm, "available", lambda: True)
+    monkeypatch.setattr(llm, "chat_json", limited)
+    monkeypatch.setattr(llm, "chat", limited)
+    out = agent.answer(conn, "Port of Rotterdam closed for 3 days")
+    assert out["explained_by"] == "rules"
+    assert any("rate limit" in step for step in out["steps"])

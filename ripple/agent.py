@@ -86,7 +86,8 @@ def plan_with_llm(conn, question: str, found: dict) -> dict:
         "MATCH (p:Port) RETURN p.code AS code, p.name AS name, p.country AS country ORDER BY name")]
     context = {
         "question": question,
-        "ports_in_graph": all_ports,
+        # One short string per port keeps the prompt small (free tiers count tokens).
+        "ports_in_graph": [f"{p['code']} {p['name']} ({p['country']})" for p in all_ports],
         "retrieval_candidate_ports": found["ports"],
         "retrieval_candidate_vessels": found["vessels"],
         "related_alerts": [{"text": a["text"], "ports": a["ports"]} for a in found["alerts"]],
@@ -185,10 +186,22 @@ You receive JSON facts computed from a graph database. Rules:
 - Start with the headline: what is disrupted and the overall impact.
 - Then name the 2 or 3 most exposed shipments. For each, quote its `path`
   exactly, in backticks, to show how the disruption reaches the customer.
-- Mention second-order (downstream) customers, and the best diversion
+- Mention `second_order_customers` (reached only through a supplier), and the best diversion
   (`best_diversion`) with what it saves, when present.
 - If `days_assumed` is true, say the duration was assumed.
 - Plain language, under 180 words, Markdown allowed."""
+
+
+def second_order_examples(result: dict, limit: int = 3) -> list:
+    """Customers reached ONLY through SUPPLIES (not directly hit), one line each."""
+    direct = {row["customer_id"] for row in result["impacted"]}
+    seen, out = set(), []
+    for row in result["downstream"]:
+        if row["customer_id"] in direct or row["customer_id"] in seen:
+            continue
+        seen.add(row["customer_id"])
+        out.append({k: row[k] for k in ("customer", "via_customer", "delay_days", "path")})
+    return out[:limit]
 
 
 def facts_for_llm(results: list, plan: dict) -> dict:
@@ -201,8 +214,7 @@ def facts_for_llm(results: list, plan: dict) -> dict:
             "disruption": r["disruption"],
             "summary": r["summary"],
             "most_exposed_shipments": [{k: row[k] for k in keep} for row in r["impacted"][:5]],
-            "downstream": [{k: row[k] for k in ("customer", "via_customer", "delay_days", "path")}
-                           for row in r["downstream"][:3]],
+            "second_order_customers": second_order_examples(r),
             "alternatives": [{k: a[k] for k in ("name", "km", "shared_routes")}
                              for a in r["alternatives"][:3]],
             "best_diversion": r.get("best_diversion") and {
@@ -225,6 +237,11 @@ def explain_with_llm(results: list, plan: dict) -> str:
 
 # --------------------------------------------------------------------- agent
 
+def llm_reason(error: Exception) -> str:
+    """A short, user-facing reason for an LLM fallback."""
+    return str(error) if isinstance(error, (llm.LLMError, ValueError)) else type(error).__name__
+
+
 def answer(conn, question: str, use_llm: bool | None = None) -> dict:
     """Run the three steps. `use_llm=None` means: use the LLM if a key is set."""
     use_llm = llm.available() if use_llm is None else (use_llm and llm.available())
@@ -240,7 +257,7 @@ def answer(conn, question: str, use_llm: bool | None = None) -> dict:
         try:
             plan, planned_by = plan_with_llm(conn, question, found), "llm"
         except Exception as error:
-            steps.append(f"LLM planning failed ({type(error).__name__}), using rules")
+            steps.append(f"LLM planning failed ({llm_reason(error)}), using rules")
     if plan is None:
         plan = plan_with_rules(question, found)
     steps.append(f"Plan ({planned_by}): ports={plan['ports']} vessels={plan['vessels']} "
@@ -267,7 +284,7 @@ def answer(conn, question: str, use_llm: bool | None = None) -> dict:
             try:
                 explanation, explained_by = explain_with_llm(results, plan), "llm"
             except Exception as error:
-                steps.append(f"LLM explanation rejected ({type(error).__name__}), using rules")
+                steps.append(f"LLM explanation not used ({llm_reason(error)}), using rules")
         if explanation is None:
             explanation = explain_with_rules(results, plan)
     steps.append(f"Explanation written by: {explained_by}")

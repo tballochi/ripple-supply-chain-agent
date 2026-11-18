@@ -49,6 +49,8 @@ def create_schema(conn) -> None:
             f"CREATE CONSTRAINT {label.lower()}_{key} IF NOT EXISTS "
             f"FOR (n:{label}) REQUIRE n.{key} IS UNIQUE"
         )
+    # Geospatial index on port positions, for "storm within 500 km of ..." questions.
+    conn.execute("CREATE POINT INDEX port_location IF NOT EXISTS FOR (p:Port) ON (p.location)")
 
 
 def create_search_indexes(conn, with_vectors: bool) -> None:

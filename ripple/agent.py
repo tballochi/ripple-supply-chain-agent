@@ -251,7 +251,9 @@ def answer(conn, question: str, use_llm: bool | None = None) -> dict:
     found = retrieval.resolve(conn, question)
     steps.append(f"Retrieval ({found['mode']} search): "
                  + (", ".join(f"{p['name']} via {p['matched_by']}" for p in found["ports"])
-                    or ", ".join(v["name"] for v in found["vessels"]) or "no entity matched"))
+                    or ", ".join(v["name"] for v in found["vessels"])
+                    or (found.get("area") and f"area {found['area']['name']}, no port inside")
+                    or "no entity matched"))
     plan, planned_by = None, "rules"
     if use_llm:
         try:
@@ -274,7 +276,12 @@ def answer(conn, question: str, use_llm: bool | None = None) -> dict:
 
     # 3. Explain
     explained_by = "rules"
-    if not results:
+    area = found.get("area")
+    if not results and area:
+        explanation = (f"No port of the graph lies within {area['radius_km']:,} km of the {area['name']}. "
+                       f"The closest one is {area['nearest_port']}, {area['nearest_km']:,.0f} km away, "
+                       "so no shipment in the graph is directly affected.")
+    elif not results:
         explanation = ("I could not link this to a port or a vessel in the graph. "
                        "Try naming a port (\"Port of Rotterdam closed for 3 days\"), a vessel, "
                        "a country, or an incident from the news alerts.")

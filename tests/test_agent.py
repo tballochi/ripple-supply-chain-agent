@@ -143,3 +143,9 @@ def test_rate_limit_fallback_is_explained(conn, monkeypatch):
     out = agent.answer(conn, "Port of Rotterdam closed for 3 days")
     assert out["explained_by"] == "rules"
     assert any("rate limit" in step for step in out["steps"])
+
+
+def test_area_without_ports_gets_an_honest_answer(conn):
+    out = agent.answer(conn, "hurricane in the Gulf of Mexico", use_llm=False)
+    assert out["results"] == []
+    assert "Gulf of Mexico" in out["explanation"] and "Savannah" in out["explanation"]

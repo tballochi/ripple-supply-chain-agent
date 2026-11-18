@@ -342,7 +342,8 @@ def build_dataset() -> dict:
 # UNWIND, so one call creates all nodes (or relationships) of one kind.
 LOAD_STEPS = [
     ("ports", "UNWIND $rows AS r CREATE (:Port {code: r.code, name: r.name, country: r.country, "
-              "region: r.region, lat: r.lat, lon: r.lon})"),
+              "region: r.region, lat: r.lat, lon: r.lon, "
+              "location: point({latitude: r.lat, longitude: r.lon})})"),
     ("routes", "UNWIND $rows AS r CREATE (:Route {id: r.id, name: r.name, transit_days: r.transit_days})"),
     ("products", "UNWIND $rows AS r CREATE (:Product {sku: r.sku, name: r.name, category: r.category})"),
     ("customers", "UNWIND $rows AS r CREATE (:Customer {id: r.id, name: r.name, kind: r.kind, "

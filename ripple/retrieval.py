@@ -85,6 +85,48 @@ RETURN p.code AS code, p.name AS name,
        CASE WHEN $text CONTAINS toLower(p.country) THEN 'country: ' + p.country
             ELSE 'region: ' + p.region END AS matched_by ORDER BY name
 """
+# Geography: ports within a distance of a point, using the location property
+# (a WGS-84 point) and Relate's point index.
+PORTS_NEAR_POINT = """
+MATCH (p:Port)
+WITH p, point.distance(p.location, point({latitude: $lat, longitude: $lon})) / 1000 AS km
+WHERE km <= $radius_km
+RETURN p.code AS code, p.name AS name, round(km) AS km ORDER BY km
+"""
+NEAREST_PORT = """
+MATCH (p:Port)
+RETURN p.name AS name, round(point.distance(p.location, point({latitude: $lat, longitude: $lon})) / 1000) AS km
+ORDER BY km LIMIT 1
+"""
+PORT_POSITION = "MATCH (p:Port {code: $code}) RETURN p.lat AS lat, p.lon AS lon"
+
+# Sea areas and coasts a question may name: centre (latitude, longitude) and
+# the radius that roughly covers them, in km. Real geography.
+AREAS = {
+    "gulf of mexico": (25.0, -90.0, 900),
+    "caribbean": (15.0, -75.0, 1200),
+    "us east coast": (36.0, -75.0, 900),
+    "us west coast": (37.0, -122.0, 900),
+    "south china sea": (12.0, 113.0, 1200),
+    "east china sea": (30.0, 125.0, 600),
+    "yellow sea": (35.5, 123.5, 500),
+    "sea of japan": (40.0, 135.0, 700),
+    "taiwan strait": (24.5, 119.5, 300),
+    "strait of malacca": (3.0, 100.5, 500),
+    "malacca strait": (3.0, 100.5, 500),
+    "bay of bengal": (15.0, 88.0, 900),
+    "arabian sea": (16.0, 65.0, 1000),
+    "persian gulf": (26.5, 52.5, 600),
+    "red sea": (20.0, 38.5, 900),
+    "suez canal": (30.6, 32.3, 150),
+    "mediterranean": (37.0, 15.0, 1600),
+    "strait of gibraltar": (35.95, -5.6, 150),
+    "english channel": (50.2, -1.0, 350),
+    "north sea": (56.0, 3.0, 600),
+    "baltic sea": (58.0, 20.0, 600),
+}
+RADIUS = re.compile(r"(\d[\d,]*)\s*(km|kilometers?|kilometres?|miles?)\b", re.IGNORECASE)
+
 VESSELS_BY_NAME = """
 MATCH (v:Vessel) WHERE $text CONTAINS toLower(v.name)
 RETURN v.imo AS imo, v.name AS name ORDER BY name
@@ -127,6 +169,19 @@ def search_alerts(conn, text: str, top: int = 5, k: int = 20) -> dict:
     return {"mode": mode, "alerts": alerts[:top]}
 
 
+def parse_radius_km(text: str) -> int | None:
+    """'within 500 km of ...' -> 500, '300 miles around ...' -> 483."""
+    match = RADIUS.search(text)
+    if not match:
+        return None
+    value = int(match.group(1).replace(",", ""))
+    return round(value * 1.609) if match.group(2).lower().startswith("mile") else value
+
+
+def ports_near(conn, lat: float, lon: float, radius_km: float) -> list[dict]:
+    return [dict(r) for r in conn.execute(PORTS_NEAR_POINT, {"lat": lat, "lon": lon, "radius_km": radius_km})]
+
+
 def resolve(conn, text: str) -> dict:
     """Find what a disruption text refers to.
 
@@ -144,15 +199,40 @@ def resolve(conn, text: str) -> dict:
     ports = [p for p in ports
              if not any(p["name"] != q["name"] and p["name"].lower() in q["name"].lower() for q in ports)]
 
+    radius = parse_radius_km(text)
+    area = None
+    if ports and radius:
+        # "within 500 km of Singapore": every port in that circle.
+        centre = ports[0]
+        at = conn.execute(PORT_POSITION, {"code": centre["code"]}).fetchone()
+        ports = [{"code": p["code"], "name": p["name"],
+                  "matched_by": f"{p['km']:.0f} km from {centre['name']} (radius {radius} km)"}
+                 for p in ports_near(conn, at["lat"], at["lon"], radius)]
     if not ports and not vessels:
+        # A sea area or a coast ("hurricane in the Gulf of Mexico"), longest name first.
+        for name in sorted(AREAS, key=len, reverse=True):
+            if name in lowered:
+                lat, lon, area_radius = AREAS[name]
+                area_radius = radius or area_radius
+                nearest = conn.execute(NEAREST_PORT, {"lat": lat, "lon": lon}).fetchone()
+                display = " ".join(w if w == "of" else ("US" if w == "us" else w.capitalize())
+                                   for w in name.split())
+                area = {"name": display, "radius_km": area_radius,
+                        "nearest_port": nearest["name"], "nearest_km": nearest["km"]}
+                ports = [{"code": p["code"], "name": p["name"],
+                          "matched_by": f"{p['km']:.0f} km from the {area['name']} centre"}
+                         for p in ports_near(conn, lat, lon, area_radius)]
+                break
+    if not ports and not vessels and not area:
         # No port named: maybe a country or a region ("ports in China").
         ports = [dict(r) for r in conn.execute(PORTS_BY_PLACE, {"text": lowered})]
-    if not ports and not vessels and alerts and alerts[0]["confident"] and alerts[0]["ports"]:
+    if not ports and not vessels and not area and alerts and alerts[0]["confident"] and alerts[0]["ports"]:
         # Still nothing: follow MENTIONS from the best alert, if it is a clear match.
         best = alerts[0]
         ports = [{**p, "matched_by": f"alert {best['id']}", "alert": best["text"]} for p in best["ports"]]
 
-    return {"text": text, "mode": found["mode"], "ports": ports, "vessels": vessels, "alerts": alerts}
+    return {"text": text, "mode": found["mode"], "ports": ports, "vessels": vessels,
+            "alerts": alerts, "area": area}
 
 
 if __name__ == "__main__":

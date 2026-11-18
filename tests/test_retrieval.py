@@ -76,3 +76,24 @@ def test_hybrid_search_finds_alerts_by_meaning(conn, text, expected):
 def test_hybrid_search_does_not_guess(conn, text):
     result = retrieval.resolve(conn, text)
     assert result["ports"] == [] and result["vessels"] == []
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("storm within 500 km of Singapore", ["Singapore", "Port Klang"]),
+    ("typhoon in the South China Sea", ["Ho Chi Minh City", "Hong Kong", "Shenzhen"]),
+    ("storm in the North Sea for 2 days", ["Bremerhaven", "Rotterdam", "Felixstowe", "Hamburg", "Antwerp"]),
+])
+def test_geography_selects_ports_by_distance(conn, fulltext_only, text, expected):
+    assert port_names(retrieval.resolve(conn, text)) == expected  # nearest first
+
+
+def test_area_without_ports_reports_the_nearest_one(conn, fulltext_only):
+    result = retrieval.resolve(conn, "hurricane in the Gulf of Mexico")
+    assert result["ports"] == [] and result["area"]["name"] == "Gulf of Mexico"
+    assert result["area"]["nearest_port"] == "Savannah" and result["area"]["nearest_km"] > 900
+
+
+@pytest.mark.parametrize("text,km", [("within 500 km of", 500), ("300 miles around", 483), ("1,200 km", 1200),
+                                     ("closed for 3 days", None)])
+def test_parse_radius(text, km):
+    assert retrieval.parse_radius_km(text) == km

@@ -240,7 +240,7 @@ def show_mitigation(result: dict, key: str) -> None:
     cols[3].metric("Value protected", agent.money(sim["value_protected_usd"]))
     st.markdown(f"**{sim['shipments_rescued']} shipments rescued** by diverting to "
                 f"{sim['fallback']['name']}; extra distance: {sim['extra_sea_km']:,} km at sea and "
-                f"{sim['extra_road_km']:,} km by road. Before: {b['shipments_late']} late, "
+                f"{sim['extra_road_km']:,} km by road or feeder. Before: {b['shipments_late']} late, "
                 f"{b['sla_breaches']} beyond tolerance.")
     st.dataframe(pd.DataFrame([{
         "Shipment": r["shipment"], "Customer": r["customer"], "Delay before": r["delay_before"],
@@ -249,7 +249,7 @@ def show_mitigation(result: dict, key: str) -> None:
     } for r in sim["shipments"]]), hide_index=True, width="stretch")
     st.caption("Model: no sea detour if the fallback is already on the vessel's route, otherwise "
                f"{mitigation.SEA_KM_PER_DAY} km/day plus a day in port; cargo loaded or unloaded at the "
-               f"closed port goes by road at {mitigation.LAND_KM_PER_DAY} km/day; a shipment is diverted "
+               f"closed port goes by truck or feeder at {mitigation.LAND_KM_PER_DAY} km/day up to {mitigation.MAX_TRANSFER_KM} km; a shipment is diverted "
                "only when that is faster than waiting.")
 
 

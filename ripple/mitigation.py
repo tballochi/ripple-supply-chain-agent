@@ -9,8 +9,10 @@ The model is deliberately simple, so each number can be explained:
   - Sea detour: none if F is already a call of the vessel's route (the graph
     tells us: (F)<-[:CALLS_AT]-(route)), otherwise the trip P -> F at
     800 km per day plus one day in port.
-  - Cargo that had to be loaded or unloaded at P now moves by road between P
-    and F, at 500 km per day.
+  - Cargo that had to be loaded or unloaded at P now moves between P and F
+    by truck or short-sea feeder, at 500 km per day, but only up to 600 km
+    (Rotterdam -> Hamburg yes, Busan -> Shanghai no). Beyond that it waits
+    for P to reopen.
   - Cargo just passing through (loaded before P and going further, or loaded
     after P) only suffers the sea detour, if any.
   - A planner diverts a shipment only if that is faster than waiting for P to
@@ -26,7 +28,8 @@ import sys
 from . import queries
 
 SEA_KM_PER_DAY = 800    # same speed as the generator's schedules
-LAND_KM_PER_DAY = 500   # a truck, door to door
+LAND_KM_PER_DAY = 500   # a truck or a short-sea feeder, door to door
+MAX_TRANSFER_KM = 600   # beyond this, moving cargo between P and F is not an option
 PORT_CALL_DAYS = 1      # an extra port call costs a day
 
 FALLBACK = """
@@ -43,13 +46,16 @@ def _diverted(row: dict, port_name: str, km: int, fallback_routes: set) -> dict:
     by_road = port_name in (row["origin"], row["destination"])
     road_days = math.ceil(km / LAND_KM_PER_DAY) if by_road else 0
     via_fallback = sea_days + road_days
-    diverted = via_fallback < row["delay_days"]
+    possible = not by_road or km <= MAX_TRANSFER_KM
+    diverted = possible and via_fallback < row["delay_days"]
     new_delay = via_fallback if diverted else row["delay_days"]
-    if not diverted:
+    if not possible:
+        how = f"keeps waiting (its cargo is handled at the closed port, {km} km is too far to transfer)"
+    elif not diverted:
         how = "keeps waiting (diverting is not faster)"
     else:
         how = ("vessel already calls there" if on_route else f"sea detour +{sea_days}d") + (
-            f", road {km} km +{road_days}d" if by_road else "")
+            f", transfer {km} km +{road_days}d" if by_road else "")
     return {
         "shipment": row["shipment"], "customer": row["customer"], "customer_id": row["customer_id"],
         "value_usd": row["value_usd"], "sla_days": row["sla_days"],
@@ -91,7 +97,7 @@ def simulate_diversion(conn, code: str, fallback: str, days: int, impact: dict |
         "breaches_avoided": before["sla_breaches"] - after["sla_breaches"],
         "value_protected_usd": before["value_beyond_tolerance_usd"] - after["value_beyond_tolerance_usd"],
         # Extra distance: a P -> F -> back detour per vessel that is not on a
-        # route calling at F, plus the road legs of the cargo moved by truck.
+        # route calling at F, plus the transfers of cargo between P and F.
         "extra_sea_km": 2 * target["km"] * len(detour_vessels),
         "extra_road_km": sum(r["road_km"] for r in rows),
         "shipments": sorted(rows, key=lambda r: (r["delay_after"] - r["delay_before"], r["shipment"])),
@@ -130,6 +136,6 @@ if __name__ == "__main__":
         print(f"{label:30}{b[key]:>10,}{a[key]:>10,}")
     print(f"\n{sim['shipments_rescued']} shipments rescued, {sim['breaches_avoided']} breaches avoided, "
           f"${sim['value_protected_usd']:,} protected, +{sim['extra_sea_km']:,} km at sea, "
-          f"+{sim['extra_road_km']:,} km by road")
+          f"+{sim['extra_road_km']:,} km by road or feeder")
     for r in sim["shipments"][:8]:
         print(f"  {r['shipment']} {r['customer']:<22} {r['delay_before']}d -> {r['delay_after']}d  {r['how']}")

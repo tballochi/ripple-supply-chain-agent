@@ -113,6 +113,13 @@ def money(amount: int) -> str:
     return f"${amount / 1_000_000:.1f}M" if amount >= 1_000_000 else f"${amount:,}"
 
 
+def extra_distance(sim: dict) -> str:
+    parts = [f"+{sim['extra_sea_km']:,} km at sea" if sim["extra_sea_km"] else "",
+             f"+{sim['extra_road_km']:,} km by road or feeder" if sim["extra_road_km"] else ""]
+    parts = [p for p in parts if p]
+    return "for " + " and ".join(parts) if parts else "with no extra distance (the vessels already call there)"
+
+
 def explain_with_rules(results: list, plan: dict) -> str:
     """Deterministic explanation, built only from the query results."""
     parts = []
@@ -159,8 +166,7 @@ def explain_with_rules(results: list, plan: dict) -> str:
                 f"Best mitigation: divert to {best['fallback']['name']} ({best['fallback']['km']} km away). "
                 f"It rescues {best['shipments_rescued']} shipments, avoids {best['breaches_avoided']} of "
                 f"{best['before']['sla_breaches']} tolerance breaches and protects "
-                f"{money(best['value_protected_usd'])} of cargo, for +{best['extra_sea_km']:,} km at sea "
-                f"and +{best['extra_road_km']:,} km by road.")
+                f"{money(best['value_protected_usd'])} of cargo, {extra_distance(best)}.")
         elif result["alternatives"]:
             lines.append(f"Diverting to a nearby port (closest: {result['alternatives'][0]['name']}) "
                          "would not be faster than waiting for the port to reopen.")

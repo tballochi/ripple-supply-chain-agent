@@ -39,7 +39,7 @@ def test_delays_follow_the_documented_model(conn, rotterdam):
         original = by_id[row["shipment"]]
         sea = 0 if original["route_id"] in routes_at_antwerp else math.ceil(km / 800) + 1
         road = math.ceil(km / 500) if "Rotterdam" in (original["origin"], original["destination"]) else 0
-        assert row["delay_after"] == min(original["delay_days"], sea + road)
+        assert row["delay_after"] == min(original["delay_days"], sea + road)  # 79 km: transfer allowed
 
 
 def test_rotterdam_has_a_useful_diversion(conn, rotterdam):
@@ -56,3 +56,13 @@ def test_fallback_must_be_a_nearby_port(conn, rotterdam):
 def test_no_alternative_means_no_diversion(conn):
     los_angeles = queries.port_closure(conn, "USLAX", 3)
     assert los_angeles["alternatives"] == [] and mitigation.best_diversion(conn, los_angeles) is None
+
+
+def test_no_transfer_beyond_the_distance_limit(conn):
+    busan = queries.port_closure(conn, "KRPUS", 3)
+    sim = mitigation.simulate_diversion(conn, "KRPUS", "CNSHA", 3, busan)  # 825 km, across the sea
+    assert sim["fallback"]["km"] > mitigation.MAX_TRANSFER_KM and sim["extra_road_km"] == 0
+    by_id = {r["shipment"]: r for r in busan["impacted"]}
+    for row in sim["shipments"]:
+        if "Busan" in (by_id[row["shipment"]]["origin"], by_id[row["shipment"]]["destination"]):
+            assert not row["diverted"] and row["delay_after"] == row["delay_before"]

@@ -64,3 +64,8 @@ def test_simulate_diversion_tool():
 def test_simulate_diversion_rejects_a_far_port():
     with pytest.raises(ToolError):
         mcp_server.simulate_diversion("Rotterdam", "Los Angeles")
+
+
+def test_risk_radar_tool():
+    out = mcp_server.risk_radar(limit=3)
+    assert len(out["alerts"]) == 3 and out["alerts"][0]["question"]

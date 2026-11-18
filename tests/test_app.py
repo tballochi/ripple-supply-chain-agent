@@ -103,7 +103,7 @@ def test_scenario_builder_writes_and_runs_a_question():
     page = render()
     page.selectbox[0].set_value("Antwerp")
     page.slider[0].set_value(4)
-    page.button[0].click().run()  # the form's "Run scenario" button
+    next(b for b in page.button if b.label == "Run scenario").click().run()
     assert page.session_state["question"] == "Port of Antwerp closed for 4 days from 2026-12-01"
     assert not page.exception and page.metric
 
@@ -115,3 +115,12 @@ def test_follow_up_in_the_ui():
     assert any("Follow-up of" in c.value for c in page.caption)
     assert page.subheader[0].value == "Rotterdam closed for 7 days"
 
+
+
+def test_landing_page_shows_the_radar_and_analyze_runs_it():
+    page = render()
+    assert any(s.value.startswith("Risk radar") for s in page.subheader)
+    page.button(key="radar-0").click().run()
+    assert not page.exception
+    assert page.session_state["question"].startswith("Port of Rotterdam")
+    assert page.metric

@@ -15,7 +15,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from ripple import agent, db, llm, mitigation, plain_rag, queries, viz
+from ripple import agent, db, llm, mitigation, plain_rag, queries, radar, viz
 from ripple.generate import SCENARIO_DATE
 
 EXAMPLES = [
@@ -303,6 +303,38 @@ question = st.text_input("Describe a disruption in plain English, then ask follo
                          "(\"and if it lasts a week?\", \"what about Antwerp instead?\")", key="question",
                          placeholder="Port of Rotterdam closed for 3 days")
 
+@st.cache_data
+def radar_rows() -> list:
+    conn = db.connect()
+    try:
+        return radar.scan(conn)
+    finally:
+        conn.close()
+
+
+def ask(question: str) -> None:
+    """Button callback: run a question as a new scenario."""
+    st.session_state["history"] = []
+    st.session_state["question"] = question
+
+
+def show_radar() -> None:
+    rows = [r for r in radar_rows() if r["shipments"]]
+    st.subheader(f"Risk radar, {SCENARIO_DATE:%d %B %Y}")
+    st.caption("Before you ask: every serious news alert of the last 3 days that names a port, "
+               "with what is left of it simulated on the graph, ranked by the cargo that would arrive "
+               "later than customers tolerate.")
+    for i, r in enumerate(rows[:6]):
+        with st.container(border=True):
+            left, middle, right = st.columns([5, 4, 1.4])
+            left.markdown(f"**{', '.join(r['port_names'])}** · {r['severity']} · {r['date']:%d %b}  \n"
+                          f"{r['text']}")
+            middle.markdown(f"**{agent.money(r['value_beyond_tolerance_usd'])}** beyond tolerance  \n"
+                            f"{r['shipments']} shipments late, {r['customers']} customers, "
+                            f"{r['ripple_customers']} via suppliers, {r['days_remaining']} day(s) left")
+            right.button("Analyze", key=f"radar-{i}", on_click=ask, args=(r["question"],), width="stretch")
+
+
 def new_scenario() -> None:
     st.session_state["history"] = []
     st.session_state["question"] = ""
@@ -366,3 +398,4 @@ else:
     st.markdown("Ask about a port, a vessel, a country, or an incident from the news. "
                 "Ripple finds every shipment and customer affected, several hops away, "
                 "and shows the path it followed.")
+    show_radar()

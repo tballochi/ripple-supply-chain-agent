@@ -17,7 +17,7 @@ import relate
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from . import agent, db, mitigation, queries, retrieval
+from . import agent, db, mitigation, queries, radar, retrieval
 
 server = MCPServer(
     "ripple",
@@ -151,6 +151,20 @@ def compare_with_plain_rag(question: str, k: int = 10) -> dict:
         conn.close()
     out["documents"] = [{"kind": d["kind"], "text": d["text"]} for d in out["documents"]]
     return plain(out)
+
+
+@server.tool()
+def risk_radar(limit: int = 10) -> dict:
+    """What today's news means for the network: every recent high or medium alert that names a
+    port, with what is left of it simulated on the graph (all its ports combined), ranked by the
+    value of cargo that would arrive later than customers tolerate. Each row has a `question` to
+    pass to analyze_disruption for the full analysis."""
+    conn = db.connect()
+    try:
+        rows = radar.scan(conn)[:limit]
+    finally:
+        conn.close()
+    return plain({"today": radar.SCENARIO_DATE, "alerts": rows})
 
 
 @server.tool()

@@ -11,6 +11,7 @@ import os
 from datetime import UTC, datetime, timedelta
 from html import escape
 from pathlib import Path
+from urllib.parse import quote
 
 import pandas as pd
 import pydeck as pdk
@@ -180,18 +181,34 @@ def graph_stats() -> dict:
     return {"nodes": nodes, "relationships": rels}
 
 
-# Map colours (RGB): white for what is hit hardest, greys for the rest, green for the way out.
-RED, AMBER, GREEN = [245, 245, 245], [150, 150, 150], [59, 214, 113]
-BLUE, VIOLET, GREY = [95, 95, 95], [205, 205, 205], [64, 64, 64]
+# Map colours (RGB): a scale from white (hit hardest) to dark grey, and green for the way out.
+HOT, WARM, COOL, COLD = [245, 245, 245], [165, 165, 165], [100, 100, 100], [58, 58, 58]
+GREEN = [59, 214, 113]
+# A map style with nothing but a black background, passed inline as a data URL: no tiles to
+# download, and Streamlit does not substitute its default basemap as it does for an empty style.
+BLANK_STYLE = "data:application/json," + quote(json.dumps({
+    "version": 8, "sources": {},
+    "layers": [{"id": "background", "type": "background", "paint": {"background-color": "#000000"}}]}))
+
+
+@st.cache_data
+def land() -> dict:
+    """Coastlines drawn by the app itself (Natural Earth 1:110m, public domain): no tiles to fetch,
+    black sea and dark land like the rest of the page."""
+    return json.loads((Path(__file__).resolve().parent / "data" / "world_land.geojson").read_text())
 
 
 def deck(layers: list, lon: float = 20.0, lat: float = 25.0, zoom: float = 0.9) -> pdk.Deck:
     # Scrolling the page must not zoom the map: zoom with the + and - buttons or a double click.
-    view = pdk.View(type="MapView", controller={"scrollZoom": False, "dragPan": True, "doubleClickZoom": True})
-    return pdk.Deck(layers=layers, views=[view], map_provider="carto", map_style=pdk.map_styles.CARTO_DARK,
+    view = pdk.View(type="MapView", controller={"scrollZoom": False, "dragPan": True, "doubleClickZoom": True},
+                    repeat=False)
+    ground = pdk.Layer("GeoJsonLayer", land(), filled=True, stroked=True, get_fill_color=[17, 17, 17],
+                       get_line_color=[52, 52, 52], line_width_min_pixels=0.6)
+    return pdk.Deck(layers=[ground, *layers], views=[view], map_provider="carto", map_style=BLANK_STYLE,
                     initial_view_state=pdk.ViewState(longitude=lon, latitude=lat, zoom=zoom, pitch=0),
                     tooltip={"html": "{tip}", "style": {"backgroundColor": "#0E0E0E", "color": "#F2F2F2",
-                                                        "fontSize": "13px", "borderRadius": "8px"}})
+                                                        "fontSize": "13px", "borderRadius": "4px",
+                                                        "border": "1px solid #333"}})
 
 
 def rings(position: list, color: list, radii=(8, 15, 23)) -> list:
@@ -224,20 +241,25 @@ def show_impact_map(result: dict) -> None:
         r["tip"] = f"<b>{escape(r['customer'])}</b> is supplied by {escape(r['via'])}: hit {r['hops']} tier(s) later"
     for p in m["ports"]:
         p.update(position=[p["lon"], p["lat"]], tip=p["name"])
+    for c in m["countries"]:
+        c["tip"] = f"Customers in {c['country']}: {c['shipments']} late delivery(ies)"
+
+    def arcs(rows: list, source: list, target: list, width: float) -> pdk.Layer:
+        """Low arcs, dim where they start and bright where they land."""
+        return pdk.Layer("ArcLayer", rows, get_source_position="from", get_target_position="to",
+                         get_source_color=source, get_target_color=target, get_width=width,
+                         get_height=0.35, pickable=True)
+
     layers = [
-        pdk.Layer("ScatterplotLayer", m["ports"], get_position="position", get_radius=60_000, radius_min_pixels=3,
-                  get_fill_color=GREY + [140], pickable=True),
-        pdk.Layer("ArcLayer", m["ripple"], get_source_position="from", get_target_position="to",
-                  get_source_color=BLUE + [120], get_target_color=VIOLET + [230], get_width=1.5,
-                  get_height=0.5, pickable=True),
-        pdk.Layer("ArcLayer", m["deliveries"], get_source_position="from", get_target_position="to",
-                  get_source_color=AMBER + [160], get_target_color=BLUE + [230], get_width=2, pickable=True),
-        pdk.Layer("ArcLayer", [s for s in m["shipments"] if not s["beyond_tolerance"]],
-                  get_source_position="from", get_target_position="to", get_source_color=AMBER + [120],
-                  get_target_color=AMBER + [255], get_width=2.5, pickable=True),
-        pdk.Layer("ArcLayer", [s for s in m["shipments"] if s["beyond_tolerance"]],
-                  get_source_position="from", get_target_position="to", get_source_color=RED + [120],
-                  get_target_color=RED + [255], get_width=3.5, pickable=True),
+        pdk.Layer("ScatterplotLayer", m["ports"], get_position="position", radius_units="pixels", get_radius=2.5,
+                  get_fill_color=COOL + [255], pickable=True),
+        arcs(m["ripple"], COOL + [60], WARM + [170], 1),
+        arcs(m["deliveries"], COLD + [120], COOL + [220], 1.2),
+        arcs([s for s in m["shipments"] if not s["beyond_tolerance"]], COLD + [140], WARM + [230], 1.6),
+        arcs([s for s in m["shipments"] if s["beyond_tolerance"]], COOL + [170], HOT + [255], 2.2),
+        pdk.Layer("ScatterplotLayer", m["countries"], get_position="position", radius_units="pixels",
+                  get_radius="2 + shipments * 0.6", get_fill_color=HOT + [235], stroked=True,
+                  get_line_color=[0, 0, 0, 255], line_width_min_pixels=1, pickable=True),
     ]
     headline = [f"<b>{len(m['shipments'])}</b> late shipments to customers in <b>{len(m['countries'])}</b> countries"]
     if m["fallback"]:
@@ -246,15 +268,16 @@ def show_impact_map(result: dict) -> None:
         headline.append(f'best fallback: <b class="rp-good">{escape(m["fallback"]["name"])}</b>')
     if m["closed"]:
         here = [m["closed"]["lon"], m["closed"]["lat"]]
-        layers += rings(here, RED)
+        layers += rings(here, HOT)
         headline.insert(0, f'<b class="rp-bad">{escape(m["closed"]["name"])}</b> closed')
     html('<div style="margin:.2rem 0 .5rem">' + " · ".join(headline) + "</div>")
-    st.pydeck_chart(deck(layers, lon=35.0, lat=22.0, zoom=0.95), height=520)
+    st.pydeck_chart(deck(layers, lon=10.0, lat=18.0, zoom=0.9), height=500)
     html('<div class="rp-muted" style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:.3rem">'
          '<span><span style="color:#F5F5F5">━</span> late shipment, beyond the customer\'s tolerance</span>'
-         '<span><span style="color:#969696">━</span> late, still tolerated</span>'
-         '<span><span style="color:#5F5F5F">━</span> on to the customer\'s country</span>'
-         '<span><span style="color:#CDCDCD">┄</span> companies hit through their suppliers</span>'
+         '<span><span style="color:#A5A5A5">━</span> late, still tolerated</span>'
+         '<span><span style="color:#646464">━</span> on to the customer\'s country</span>'
+         '<span><span style="color:#A5A5A5">╌</span> companies hit through their suppliers</span>'
+         '<span><span style="color:#F5F5F5">●</span> customers, by country</span>'
          '<span><span class="rp-good">●</span> best fallback port</span>'
          '<span>Ports and routes are real places; customers sit at the centre of their country.</span></div>')
 
@@ -485,7 +508,7 @@ def show_radar_map(rows: list) -> None:
     layers = []
     top = max((p["value"] for p in points), default=1) or 1
     for p in points:
-        color = RED if p["severity"] == "high" else AMBER
+        color = HOT if p["severity"] == "high" else WARM
         size = 3 + 3.5 * (p["value"] / top) ** 0.5  # pixels: area grows with the cargo at risk
         p["tip"] = f"<b>{p['name']}</b> · {agent.money(p['value'])} beyond tolerance<br>{escape(p['text'])}"
         layers += [pdk.Layer("ScatterplotLayer", [p], get_position="position", radius_units="pixels",
@@ -698,7 +721,7 @@ def weak_points_page() -> None:
     points = []
     for rank, p in enumerate(ports, 1):
         share = p["value_beyond_tolerance_usd"] / top
-        color = RED if share > .5 else AMBER if share > .2 else BLUE if p["shipments"] else GREY
+        color = HOT if share > .5 else WARM if share > .2 else COOL if p["shipments"] else COLD
         points.append({"position": [p["lon"], p["lat"]], "radius": 3 + 9 * share ** .5, "color": color + [230],
                        "tip": f"<b>#{rank} {escape(p['name'])}</b><br>"
                               f"{agent.money(p['value_beyond_tolerance_usd'])} beyond tolerance · "
@@ -706,10 +729,10 @@ def weak_points_page() -> None:
     layer = pdk.Layer("ScatterplotLayer", points, get_position="position", radius_units="pixels",
                       get_radius="radius", get_fill_color="color", stroked=True, get_line_color=[10, 15, 28, 255],
                       line_width_min_pixels=1, pickable=True)
-    st.pydeck_chart(deck([layer], lon=40.0, lat=22.0, zoom=0.95), height=420)
+    st.pydeck_chart(deck([layer], lon=10.0, lat=18.0, zoom=0.9), height=470)
     html('<div class="rp-muted"><span style="color:#F5F5F5">●</span> most exposed &nbsp; '
-         '<span style="color:#969696">●</span> exposed &nbsp; <span style="color:#5F5F5F">●</span> some late '
-         'cargo &nbsp; <span style="color:#404040">●</span> nothing due in that window. '
+         '<span style="color:#A5A5A5">●</span> exposed &nbsp; <span style="color:#646464">●</span> some late '
+         'cargo &nbsp; <span style="color:#3A3A3A">●</span> nothing due in that window. '
          'Size: cargo later than customers tolerate.</div>')
     st.dataframe(pd.DataFrame([{
         "Rank": i, "Port": p["name"], "Beyond tolerance": p["value_beyond_tolerance_usd"],

@@ -8,13 +8,16 @@ ports, shipments and customers:
   Memory (the agent remembers its analyses):
     (:Episode {question, at, days, shipments, ...})-[:ABOUT]->(:Port | :Vessel)
 
+  Live news (real events fetched by ripple.live):
+    (:LiveAlert {source, text, severity, date, url})-[:MENTIONS]->(:Port)
+
   Decisions (a diversion the user chose to keep):
     (:Plan)-[:DIVERTS_FROM]->(:Port)      the closed port
     (:Plan)-[:DIVERTS_TO]->(:Port)        the fallback port
     (:Plan)-[:RESCUES {before, after}]->(:Shipment)
 
 If the committed data changes (python -m ripple.generate), the copy no longer
-matches it and is rebuilt from scratch, dropping its plans and episodes.
+matches it and is rebuilt from scratch, dropping its plans, episodes and live alerts.
 """
 
 import hashlib
@@ -63,7 +66,7 @@ def ensure() -> Path:
     shutil.copytree(db.STORE_PATH, where, ignore=shutil.ignore_patterns(".cypherlite.writer"))
     conn = _open()
     try:
-        for label in ("Episode", "Plan"):
+        for label in ("Episode", "Plan", "LiveAlert"):
             conn.execute(f"CREATE CONSTRAINT {label.lower()}_id IF NOT EXISTS "
                          f"FOR (n:{label}) REQUIRE n.id IS UNIQUE")
     finally:
@@ -99,6 +102,15 @@ def _read(cypher: str, params: dict | None = None) -> list[dict]:
         return [dict(r) for r in conn.execute(cypher, params or {})]
     finally:
         conn.close()
+
+
+def write(cypher: str, params: dict) -> None:
+    """Run a write query on the workspace (used by the live news module)."""
+    _write(cypher, params)
+
+
+def read(cypher: str, params: dict | None = None) -> list[dict]:
+    return _read(cypher, params)
 
 
 # ------------------------------------------------------------------- memory

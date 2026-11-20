@@ -35,6 +35,20 @@ ORDER BY date DESC, id
 """
 
 
+def impact_row(conn, port_codes: list, port_names: list, days: int, start: date) -> dict:
+    """What closing these ports for `days` from `start` does, all of them combined."""
+    results = [queries.port_closure(conn, code, days, start) for code in port_codes]
+    combined = queries.combine(results)  # each shipment once, with its largest delay
+    return {
+        "shipments": combined["shipments"], "customers": combined["customers"],
+        "sla_breaches": combined["sla_breaches"], "ripple_customers": combined["downstream_customers"],
+        "value_at_risk_usd": combined["value_at_risk_usd"],
+        "value_beyond_tolerance_usd": combined["value_beyond_tolerance_usd"],
+        # The question to ask Ripple for the full analysis.
+        "question": f"{' and '.join('Port of ' + n for n in port_names)} closed for {days} days",
+    }
+
+
 def scan(conn, today: date = SCENARIO_DATE, lookback_days: int = LOOKBACK_DAYS) -> list[dict]:
     """One row per alert still in effect today, highest risk first."""
     rows = []
@@ -44,18 +58,8 @@ def scan(conn, today: date = SCENARIO_DATE, lookback_days: int = LOOKBACK_DAYS) 
         remaining = total_days - (today - alert["date"]).days
         if remaining <= 0:
             continue  # already over
-        results = [queries.port_closure(conn, code, remaining, today) for code in alert["port_codes"]]
-        combined = queries.combine(results)  # each shipment once, with its largest delay
-        rows.append({
-            **alert, "days_total": total_days, "days_remaining": remaining,
-            "shipments": combined["shipments"], "customers": combined["customers"],
-            "sla_breaches": combined["sla_breaches"], "ripple_customers": combined["downstream_customers"],
-            "value_at_risk_usd": combined["value_at_risk_usd"],
-            "value_beyond_tolerance_usd": combined["value_beyond_tolerance_usd"],
-            # The question to ask Ripple for the full analysis of this alert.
-            "question": (f"{' and '.join('Port of ' + n for n in alert['port_names'])} closed for "
-                         f"{remaining} days"),
-        })
+        rows.append({**alert, **impact_row(conn, alert["port_codes"], alert["port_names"], remaining, today),
+                     "days_total": total_days, "days_remaining": remaining})
     rows.sort(key=lambda r: (-r["value_beyond_tolerance_usd"], -r["shipments"], r["id"]))
     return rows
 

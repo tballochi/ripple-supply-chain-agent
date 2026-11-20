@@ -8,7 +8,8 @@ agent can ask "what if Rotterdam closes for 3 days?" and call these tools
 itself. Every answer carries the graph paths, so the calling agent can
 explain its reasoning too.
 
-The store is opened read-only: no tool can modify the graph.
+The committed store is opened read-only: no tool can modify it. live_radar only
+adds the real news it fetched to the workspace copy (.ripple/).
 """
 
 import json

@@ -14,7 +14,8 @@ products and customers. It lists every delayed shipment and affected customer, r
 delay, priority and customer tier, and shows the exact path behind each answer. It follows the
 ripple up to three supplier tiers, understands sea areas ("typhoon in the South China Sea"),
 takes follow-ups ("and if it lasts a week?") and simulates diverting vessels to a nearby port.
-Before anyone asks, a risk radar ranks today's news by exposure. Kept plans and past analyses are
+Before anyone asks, a risk radar ranks today's news by exposure, including real events from GDACS
+and Google News matched to real port positions. Kept plans and past analyses are
 written back to the graph. A "Graph vs plain RAG" tab answers each question with top-k retrieval
 over the same data written as text: for Rotterdam, 29 delayed shipments versus 1.
 
@@ -25,7 +26,7 @@ COLLECT subqueries, and Relate's full-text and vector indexes fused by reciproca
 SEARCH query. Free questions get LLM-written Cypher, checked with EXPLAIN and refused unless
 read-only. A local embedding model, an optional free LLM (Groq) that chooses between fixed
 queries and writes from returned paths, a deterministic no-LLM mode, a Streamlit UI and an MCP
-server with 11 read-only tools. The code was written with Claude Code.
+server with 12 tools. The code was written with Claude Code.
 
 ### Challenges we ran into
 Making the comparison with plain RAG fair rather than a strawman: the baseline gets every record
@@ -33,7 +34,7 @@ as a document and the same hybrid search, and the vessel-outage case shows where
 
 ### Accomplishments that we're proud of
 Every answer is explainable by a path. Every one of the 30 ports gives a real answer. Retrieval is
-measured on 33 questions (100% hybrid, 91% without the embedding model). 152 tests run in CI,
+measured on 33 questions (100% hybrid, 91% without the embedding model). 167 tests run in CI,
 including one that regenerates the store and checks it matches the committed one.
 
 ### What we learned

@@ -298,8 +298,9 @@ with st.sidebar:
     stats = graph_stats()
     st.markdown("**The graph**")
     st.caption(" · ".join(f"{n} {label}s" for label, n in stats["nodes"].items())
-               + f" · {stats['relationships']} relationships. All data is synthetic; "
-                 "the scenario's \"today\" is 1 December 2026.")
+               + f" · {stats['relationships']} relationships. The ports and their positions "
+                 "are real (Wikidata, Natural Earth); vessels, shipments and customers are synthetic. "
+                 "The scenario's \"today\" is 1 December 2026.")
 
 # ---------------------------------------------------------------------- main
 st.header("What happens if...?")

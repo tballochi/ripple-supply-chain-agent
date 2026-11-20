@@ -45,7 +45,7 @@ def impact_row(conn, port_codes: list, port_names: list, days: int, start: date)
         "value_at_risk_usd": combined["value_at_risk_usd"],
         "value_beyond_tolerance_usd": combined["value_beyond_tolerance_usd"],
         # The question to ask Ripple for the full analysis.
-        "question": f"{' and '.join('Port of ' + n for n in port_names)} closed for {days} days",
+        "question": f"{' and '.join('Port of ' + n for n in port_names)} closed for {days} day{'s' * (days != 1)}",
     }
 
 

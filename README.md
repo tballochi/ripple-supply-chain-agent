@@ -7,7 +7,7 @@ A supply chain disruption agent on a <a href="https://relatedb.ai">Relate</a> gr
 
 <p align="center">
 <a href="https://github.com/tballochi/ripple-supply-chain-agent/actions/workflows/tests.yml"><img src="https://github.com/tballochi/ripple-supply-chain-agent/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
-· <b>Live demo:</b> <i>coming soon</i> · <b>Video:</b> <i>coming soon</i> · Relate by Neo4j Hackathon
+· <b>Live demo:</b> <a href="https://ripple-supply-chain.streamlit.app">ripple-supply-chain.streamlit.app</a> · <b>Video:</b> <i>coming soon</i> · Relate by Neo4j Hackathon
 </p>
 
 ![Ripple demo: Rotterdam closed for 3 days](docs/demo.gif)

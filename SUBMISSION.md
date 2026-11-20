@@ -66,8 +66,8 @@ GitHub
 - [ ] Keep the repo public until judging ends.
 
 Live demo
-- [ ] Deploy following [DEPLOY.md](DEPLOY.md).
-- [ ] Replace the "Live demo: coming soon" line in the README with the URL, commit and push.
+- [x] Deploy following [DEPLOY.md](DEPLOY.md): <https://ripple-supply-chain.streamlit.app>
+- [x] Replace the "Live demo: coming soon" line in the README with the URL, commit and push.
 - [ ] Open the app the day judging starts so it is awake.
 
 Video

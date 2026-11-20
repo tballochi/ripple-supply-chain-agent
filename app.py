@@ -77,11 +77,12 @@ st.markdown("""<style>
 </style>""", unsafe_allow_html=True)
 
 
-# The logo's three circles, without the tile (same geometry as assets/make_logo.py).
-HERO_ART = ('<svg viewBox="14 6 110 110" aria-hidden="true">'
-            '<circle cx="65.4" cy="62.6" r="47" fill="none" stroke="#FFFFFF" stroke-width="3"/>'
-            '<circle cx="53.3" cy="74.7" r="30" fill="none" stroke="#6B6B6B" stroke-width="3"/>'
-            '<circle cx="41.3" cy="86.7" r="16" fill="#3BD671"/></svg>')
+# The logo's three waves, without the tile (same geometry as assets/make_logo.py).
+HERO_ART = ('<svg viewBox="20 22 88 84" aria-hidden="true"><g fill="none" stroke-width="6" '
+            'stroke-linecap="round">'
+            '<path d="M28 44 q9 -10 18 0 t18 0 t18 0 t18 0" stroke="#3BD671"/>'
+            '<path d="M28 66 q9 -10 18 0 t18 0 t18 0 t18 0" stroke="#FFFFFF"/>'
+            '<path d="M28 88 q9 -10 18 0 t18 0 t18 0 t18 0" stroke="#6B6B6B"/></g></svg>')
 
 
 def html(markup: str) -> None:

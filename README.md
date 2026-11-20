@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo.svg" width="112" alt="Ripple logo: three circles touching at one point, white, black and green"></p>
+<p align="center"><img src="assets/logo.svg" width="112" alt="Ripple logo: three waves, green, white and grey"></p>
 
 <h1 align="center">Ripple</h1>
 

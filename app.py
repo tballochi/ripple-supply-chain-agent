@@ -590,6 +590,8 @@ def show_verdict(out: dict) -> None:
     d = results[0]["disruption"]
     what = "closed" if d["kind"] == "port_closure" else "out of service"
     cmp = run_comparison(out["question"], results, 10)
+    queries_run = sum(len(r.get("trace", [])) for r in results)
+    ms = sum(step["ms"] for r in results for step in r.get("trace", []))
     best = results[0].get("best_diversion") if len(results) == 1 else None
     move = ""
     if best and best["shipments_rescued"]:
@@ -606,7 +608,8 @@ def show_verdict(out: dict) -> None:
              through suppliers</div></div>
       </div>
       <div class="rp-row">{move}<span>Plain RAG on the same data finds
-        <b>{cmp["plain_rag"]["shipments_found"]}</b> of the {c["shipments"]} late shipments</span></div>
+        <b>{cmp["plain_rag"]["shipments_found"]}</b> of the {c["shipments"]} late shipments</span>
+        <span class="rp-muted" style="margin:0">{queries_run} Cypher queries on Relate, {ms:.0f} ms</span></div>
     </div>''')
 
 
@@ -711,7 +714,7 @@ def weak_points_page() -> None:
         "Shipments late": p["shipments"], "Customers hit": p["customers"], "Via suppliers": p["ripple_customers"],
         "Customers depending on it": p["dependent_customers"], "Routes": p["routes"], "Vessels": p["vessels"],
     } for i, p in enumerate(ports, 1)]), hide_index=True, width="stretch",
-        column_config={"Beyond tolerance": st.column_config.NumberColumn(format="$%d"),
+        column_config={"Beyond tolerance": st.column_config.NumberColumn(format="dollar"),
                        "Customers depending on it": st.column_config.ProgressColumn(
                            min_value=0, max_value=customers, format="%d")})
     st.markdown("**Analyze one of the five weakest ports**")

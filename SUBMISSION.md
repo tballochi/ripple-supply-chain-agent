@@ -14,7 +14,8 @@ products and customers. It draws the ripple on a world map, lists every delayed 
 affected customer, ranks them by delay, priority and customer tier, and shows the exact path behind each answer. It follows the
 ripple up to three supplier tiers, understands sea areas ("typhoon in the South China Sea"),
 takes follow-ups ("and if it lasts a week?") and simulates diverting vessels to a nearby port.
-Before anyone asks, a risk radar ranks today's news by exposure, including real events from GDACS
+Before anyone asks, a risk radar ranks today's news by exposure and a weak-points page closes
+every port in turn to show where the network is fragile, including real events from GDACS
 and Google News matched to real port positions. Kept plans and past analyses are
 written back to the graph. A "Graph vs plain RAG" tab answers each question with top-k retrieval
 over the same data written as text: for Rotterdam, 29 delayed shipments versus 1.
@@ -34,7 +35,7 @@ as a document and the same hybrid search, and the vessel-outage case shows where
 
 ### Accomplishments that we're proud of
 Every answer is explainable by a path. Every one of the 30 ports gives a real answer. Retrieval is
-measured on 33 questions (100% hybrid, 91% without the embedding model). 171 tests run in CI,
+measured on 33 questions (100% hybrid, 91% without the embedding model). 185 tests run in CI,
 including one that regenerates the store and checks it matches the committed one.
 
 ### What we learned

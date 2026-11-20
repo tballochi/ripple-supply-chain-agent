@@ -84,7 +84,7 @@ streamlit run app.py
 ```
 
 The Relate store is committed in `data/ripple.relate`: nothing to start or load. For the LLM mode,
-`cp .env.example .env` and add a free Groq key. Tests: `python -m pytest` (171 tests, run in CI on
+`cp .env.example .env` and add a free Groq key. Tests: `python -m pytest` (185 tests, run in CI on
 Python 3.12 and 3.13 with a lint step and a check that the committed store matches the generator).
 
 ## Try these
@@ -175,6 +175,21 @@ flowchart LR
 
 ## How Relate is used
 
+Relate is visible in the app, not only behind it:
+
+- **Under the hood**, on every answer: the Cypher queries Relate ran, with their parameters, row counts
+  and times (Rotterdam: 3 queries, about 6 ms), and for each one a command that replays it with
+  Relate's own CLI on the committed store. A test checks the CLI returns the same rows.
+- **Network weak points**: every port closed in turn with the same multi-hop analysis (91 queries,
+  about 70 ms for the whole network), plus one dependence query that counts the customers relying
+  on each port through `-[:SUPPLIES*0..3]->`.
+- **Inside the graph**: the data model, counts and indexes read live from Relate
+  (`CALL db.schema.nodeTypeProperties()`, `SHOW INDEXES`), and a read-only Cypher console.
+
+| ![Network weak points](docs/weak-points.png) | ![Inside the graph](docs/inside-graph.png) |
+|---|---|
+| ![Under the hood: the Cypher behind an answer](docs/under-the-hood.png) | ![Impact map](docs/impact-map.png) |
+
 | Relate feature | Where |
 |---|---|
 | Embedded store, directory layout with the readable JSON codec, opened read-only by the app | `ripple/db.py`, `data/ripple.relate` |
@@ -188,6 +203,9 @@ flowchart LR
 | `COLLECT { }` and `EXISTS { }` subqueries, `FOREACH`, `UNWIND $rows ... CREATE` | across `ripple/` |
 | `EXPLAIN` to check LLM-written Cypher (syntax and read-only query type) before it runs | `ripple/lookup.py` |
 | `CALL db.schema.nodeTypeProperties()` for the schema given to the LLM and to MCP agents | `ripple/lookup.py`, `ripple/mcp_server.py` |
+| `SHOW INDEXES`, schema and pattern counts for the live data model page | `ripple/explore.py` |
+| Zero-to-three hop `-[:SUPPLIES*0..3]->` inside `COLLECT { }` to measure each port's dependence | `ripple/resilience.py` |
+| Relate's CLI to replay any query of an answer, parameters written as literals | `ripple/queries.py` |
 | Uniqueness constraints on every key | `ripple/db.py` |
 
 <details>
@@ -260,9 +278,11 @@ ripple/plain_rag.py    plain RAG baseline for the comparison
 ripple/evaluate.py     retrieval scores on 33 questions
 ripple/viz.py          static and interactive graph drawings
 ripple/geo.py          map data: late shipments as arcs, customers by country, the radar on a globe
+ripple/resilience.py   network weak points: every port closed in turn, dependence per port
+ripple/explore.py      the data model read from Relate, read-only Cypher console
 ripple/mcp_server.py   MCP tools
 app.py                 Streamlit UI
-tests/                 171 tests
+tests/                 185 tests
 ```
 </details>
 

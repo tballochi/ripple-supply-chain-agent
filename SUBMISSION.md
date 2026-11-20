@@ -9,25 +9,21 @@ away from the event: a graph question, and the test of connected context.
 
 ### What it does
 Ripple takes a disruption in plain English ("Port of Rotterdam closed for 3 days", "the
-ransomware attack in Korea") and walks a Relate graph of ports, routes, vessels, shipments,
-products and customers. It draws the ripple on a world map, lists every delayed shipment and
-affected customer, ranks them by delay, priority and customer tier, and shows the exact path behind each answer. It follows the
-ripple up to three supplier tiers, understands sea areas ("typhoon in the South China Sea"),
-takes follow-ups ("and if it lasts a week?") and simulates diverting vessels to a nearby port.
-Before anyone asks, a risk radar ranks today's news by exposure and a weak-points page closes
-every port in turn to show where the network is fragile, including real events from GDACS
-and Google News matched to real port positions. Kept plans and past analyses are
-written back to the graph. A "Graph vs plain RAG" tab answers each question with top-k retrieval
-over the same data written as text: for Rotterdam, 29 delayed shipments versus 1.
+ransomware attack in Korea") and walks a Relate graph of ports, routes, vessels, shipments and
+customers. It draws the ripple on a world map, ranks every delayed shipment and affected customer,
+shows the exact path behind each one, follows the ripple up to three supplier tiers, takes
+follow-ups ("and if it lasts a week?") and simulates diverting vessels. A risk radar ranks today's
+news, real events from GDACS and Google News included; a weak-points page closes every port in turn
+to show where the network is fragile. A "Graph vs plain RAG" tab answers the same question with
+top-k retrieval over the same data as text: for Rotterdam, 29 delayed shipments versus 1.
 
 ### How we built it
-Python and the embedded Relate engine: a committed directory store, Cypher multi-hop patterns
-with path variables and variable-length SUPPLIES chains, date arithmetic, point distances,
-COLLECT subqueries, and Relate's full-text and vector indexes fused by reciprocal rank in a single
-SEARCH query. Free questions get LLM-written Cypher, checked with EXPLAIN and refused unless
-read-only. A local embedding model, an optional free LLM (Groq) that chooses between fixed
-queries and writes from returned paths, a deterministic no-LLM mode, a Streamlit UI and an MCP
-server with 12 tools. The code was written with Claude Code.
+Python and the embedded Relate engine: multi-hop Cypher with path variables, variable-length
+SUPPLIES chains, date arithmetic, point distances, COLLECT subqueries, and full-text and vector
+indexes fused in one SEARCH query. Every answer lists the queries Relate ran, with a command to
+replay them in Relate's CLI. Free questions get LLM-written Cypher, refused unless EXPLAIN says
+read-only. An optional free LLM (Groq), a deterministic no-LLM mode, Streamlit and an MCP server
+with 12 tools. The code was written with Claude Code.
 
 ### Challenges we ran into
 Making the comparison with plain RAG fair rather than a strawman: the baseline gets every record

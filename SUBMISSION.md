@@ -10,8 +10,8 @@ away from the event: a graph question, and the test of connected context.
 ### What it does
 Ripple takes a disruption in plain English ("Port of Rotterdam closed for 3 days", "the
 ransomware attack in Korea") and walks a Relate graph of ports, routes, vessels, shipments,
-products and customers. It lists every delayed shipment and affected customer, ranks them by
-delay, priority and customer tier, and shows the exact path behind each answer. It follows the
+products and customers. It draws the ripple on a world map, lists every delayed shipment and
+affected customer, ranks them by delay, priority and customer tier, and shows the exact path behind each answer. It follows the
 ripple up to three supplier tiers, understands sea areas ("typhoon in the South China Sea"),
 takes follow-ups ("and if it lasts a week?") and simulates diverting vessels to a nearby port.
 Before anyone asks, a risk radar ranks today's news by exposure, including real events from GDACS
@@ -34,7 +34,7 @@ as a document and the same hybrid search, and the vessel-outage case shows where
 
 ### Accomplishments that we're proud of
 Every answer is explainable by a path. Every one of the 30 ports gives a real answer. Retrieval is
-measured on 33 questions (100% hybrid, 91% without the embedding model). 167 tests run in CI,
+measured on 33 questions (100% hybrid, 91% without the embedding model). 171 tests run in CI,
 including one that regenerates the store and checks it matches the committed one.
 
 ### What we learned

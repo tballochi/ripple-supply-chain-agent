@@ -19,6 +19,8 @@ A supply chain disruption agent on a <a href="https://relatedb.ai">Relate</a> gr
 - **Ripple walks the graph**: port → routes → vessels due during the closure → cargo on board or not
   loaded yet → customers → the companies they supply, up to 3 supplier tiers. Every answer comes
   with **the exact path** that explains it.
+- **It shows the ripple on a world map**: one closure in Rotterdam, late cargo from Jebel Ali to
+  New York, customers in 11 countries, companies hit through their suppliers, the fallback port.
 - **It finds 29 delayed shipments where plain RAG finds 1**, on the same data and the same question.
 - **It acts**: a risk radar ranks today's news by exposure before you ask, a simulator finds the
   best diversion (Rotterdam → Hamburg protects $2.9M), and kept plans are written back to the graph.
@@ -28,6 +30,8 @@ A supply chain disruption agent on a <a href="https://relatedb.ai">Relate</a> gr
   hazards, Google News headlines on strikes, closures and cyber incidents) are matched to the ports
   of the graph and simulated on it. The ports and their positions are real (Wikidata, Natural
   Earth); vessels, shipments and customers are synthetic.
+
+![Impact map: Rotterdam closed, the late shipments and the customers they reach](docs/impact-map.png)
 
 ## Why a graph
 
@@ -80,7 +84,7 @@ streamlit run app.py
 ```
 
 The Relate store is committed in `data/ripple.relate`: nothing to start or load. For the LLM mode,
-`cp .env.example .env` and add a free Groq key. Tests: `python -m pytest` (167 tests, run in CI on
+`cp .env.example .env` and add a free Groq key. Tests: `python -m pytest` (171 tests, run in CI on
 Python 3.12 and 3.13 with a lint step and a check that the committed store matches the generator).
 
 ## Try these
@@ -255,9 +259,10 @@ ripple/lookup.py       free questions: LLM-written, checked, read-only Cypher
 ripple/plain_rag.py    plain RAG baseline for the comparison
 ripple/evaluate.py     retrieval scores on 33 questions
 ripple/viz.py          static and interactive graph drawings
+ripple/geo.py          map data: late shipments as arcs, customers by country, the radar on a globe
 ripple/mcp_server.py   MCP tools
 app.py                 Streamlit UI
-tests/                 167 tests
+tests/                 171 tests
 ```
 </details>
 

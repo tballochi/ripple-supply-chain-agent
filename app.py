@@ -13,10 +13,11 @@ from html import escape
 from pathlib import Path
 
 import pandas as pd
+import pydeck as pdk
 import streamlit as st
 import streamlit.components.v1 as components
 
-from ripple import agent, db, live, llm, mitigation, plain_rag, queries, radar, viz, workspace
+from ripple import agent, db, geo, live, llm, mitigation, plain_rag, queries, radar, viz, workspace
 from ripple.generate import SCENARIO_DATE
 
 EXAMPLES = [
@@ -178,6 +179,85 @@ def graph_stats() -> dict:
     return {"nodes": nodes, "relationships": rels}
 
 
+# Map colours (RGBA): the logo's blues, plus red for the disruption and green for the way out.
+RED, AMBER, GREEN = [251, 113, 133], [251, 191, 36], [52, 211, 153]
+BLUE, VIOLET, GREY = [96, 165, 250], [167, 139, 250], [148, 163, 184]
+
+
+def deck(layers: list, lon: float = 20.0, lat: float = 25.0, zoom: float = 0.9) -> pdk.Deck:
+    # Scrolling the page must not zoom the map: zoom with the + and - buttons or a double click.
+    view = pdk.View(type="MapView", controller={"scrollZoom": False, "dragPan": True, "doubleClickZoom": True})
+    return pdk.Deck(layers=layers, views=[view], map_provider="carto", map_style=pdk.map_styles.CARTO_DARK,
+                    initial_view_state=pdk.ViewState(longitude=lon, latitude=lat, zoom=zoom, pitch=0),
+                    tooltip={"html": "{tip}", "style": {"backgroundColor": "#121A2C", "color": "#E6EDF7",
+                                                        "fontSize": "13px", "borderRadius": "8px"}})
+
+
+def rings(position: list, color: list, radii=(8, 15, 23)) -> list:
+    """The logo's ripple drawn on the map: a filled centre and widening rings (sizes in pixels)."""
+    point = [{"position": position, "tip": ""}]
+    layers = [pdk.Layer("ScatterplotLayer", point, get_position="position", radius_units="pixels",
+                        get_radius=r, filled=False, stroked=True, get_line_color=color + [230 - 65 * i],
+                        line_width_min_pixels=2) for i, r in enumerate(radii)]
+    return layers + [pdk.Layer("ScatterplotLayer", point, get_position="position", radius_units="pixels",
+                               get_radius=5, get_fill_color=color + [255])]
+
+
+@st.cache_data(show_spinner=False)
+def impact_map_data(result_json: str) -> dict:
+    conn = db.connect()
+    try:
+        return geo.impact_map(conn, json.loads(result_json))
+    finally:
+        conn.close()
+
+
+def show_impact_map(result: dict) -> None:
+    m = impact_map_data(json.dumps(result, default=str))
+    for s in m["shipments"]:
+        s["tip"] = (f"<b>{s['shipment']}</b> for {escape(s['customer'])}<br>{s['from_name']} → {s['to_name']}"
+                    f"<br>+{s['delay_days']} days" + (" · beyond tolerance" if s["beyond_tolerance"] else ""))
+    for d in m["deliveries"]:
+        d["tip"] = f"{d['customers']} late delivery(ies) to customers in {d['country']}"
+    for r in m["ripple"]:
+        r["tip"] = f"<b>{escape(r['customer'])}</b> is supplied by {escape(r['via'])}: hit {r['hops']} tier(s) later"
+    for p in m["ports"]:
+        p.update(position=[p["lon"], p["lat"]], tip=p["name"])
+    layers = [
+        pdk.Layer("ScatterplotLayer", m["ports"], get_position="position", get_radius=60_000, radius_min_pixels=3,
+                  get_fill_color=GREY + [140], pickable=True),
+        pdk.Layer("ArcLayer", m["ripple"], get_source_position="from", get_target_position="to",
+                  get_source_color=BLUE + [120], get_target_color=VIOLET + [230], get_width=1.5,
+                  get_height=0.5, pickable=True),
+        pdk.Layer("ArcLayer", m["deliveries"], get_source_position="from", get_target_position="to",
+                  get_source_color=AMBER + [160], get_target_color=BLUE + [230], get_width=2, pickable=True),
+        pdk.Layer("ArcLayer", [s for s in m["shipments"] if not s["beyond_tolerance"]],
+                  get_source_position="from", get_target_position="to", get_source_color=AMBER + [120],
+                  get_target_color=AMBER + [255], get_width=2.5, pickable=True),
+        pdk.Layer("ArcLayer", [s for s in m["shipments"] if s["beyond_tolerance"]],
+                  get_source_position="from", get_target_position="to", get_source_color=RED + [120],
+                  get_target_color=RED + [255], get_width=3.5, pickable=True),
+    ]
+    headline = [f"<b>{len(m['shipments'])}</b> late shipments to customers in <b>{len(m['countries'])}</b> countries"]
+    if m["fallback"]:
+        there = [m["fallback"]["lon"], m["fallback"]["lat"]]
+        layers += rings(there, GREEN, radii=(9,))
+        headline.append(f'best fallback: <b class="rp-good">{escape(m["fallback"]["name"])}</b>')
+    if m["closed"]:
+        here = [m["closed"]["lon"], m["closed"]["lat"]]
+        layers += rings(here, RED)
+        headline.insert(0, f'<b class="rp-bad">{escape(m["closed"]["name"])}</b> closed')
+    html('<div style="margin:.2rem 0 .5rem">' + " · ".join(headline) + "</div>")
+    st.pydeck_chart(deck(layers, lon=35.0, lat=22.0, zoom=0.95), height=520)
+    html('<div class="rp-muted" style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:.3rem">'
+         '<span><span class="rp-bad">━</span> late shipment, beyond the customer\'s tolerance</span>'
+         '<span style="color:#FBBF24">━</span><span style="margin-left:-12px">&nbsp;late, still tolerated</span>'
+         '<span><span style="color:#60A5FA">━</span> on to the customer\'s country</span>'
+         '<span><span style="color:#A78BFA">━</span> companies hit through their suppliers</span>'
+         '<span><span class="rp-good">●</span> best fallback port</span>'
+         '<span>Ports and routes are real places; customers sit at the centre of their country.</span></div>')
+
+
 def show_result(result: dict, key: str) -> None:
     d, s = result["disruption"], result["summary"]
     what = "closed" if d["kind"] == "port_closure" else "out of service"
@@ -195,9 +275,12 @@ def show_result(result: dict, key: str) -> None:
         st.info("No vessel in the graph is scheduled to call there during that window.")
         return
 
-    tab_list, tab_graph, tab_downstream, tab_mitigation = st.tabs(
-        ["Impacted shipments", "Impact graph", "Ripple effect",
+    tab_map, tab_list, tab_graph, tab_downstream, tab_mitigation = st.tabs(
+        ["Impact map", "Impacted shipments", "Impact graph", "Ripple effect",
          "Mitigation" if d["kind"] == "port_closure" else "Alternatives"])
+
+    with tab_map:
+        show_impact_map(result)
 
     with tab_list:
         table = pd.DataFrame([{
@@ -406,6 +489,29 @@ def live_rows(day: str) -> tuple[list, list]:
         conn.close()
 
 
+def show_radar_map(rows: list) -> None:
+    conn = db.connect()
+    try:
+        points = geo.radar_map(conn, rows)
+    finally:
+        conn.close()
+    layers = []
+    top = max((p["value"] for p in points), default=1) or 1
+    for p in points:
+        color = RED if p["severity"] == "high" else AMBER
+        size = 3 + 3.5 * (p["value"] / top) ** 0.5  # pixels: area grows with the cargo at risk
+        p["tip"] = f"<b>{p['name']}</b> · {agent.money(p['value'])} beyond tolerance<br>{escape(p['text'])}"
+        layers += [pdk.Layer("ScatterplotLayer", [p], get_position="position", radius_units="pixels",
+                             get_radius=size * k, filled=False, stroked=True,
+                             get_line_color=color + [200 - 70 * i], line_width_min_pixels=1.5)
+                   for i, k in enumerate((2, 3.2))]  # hover a port for its name and alert
+        layers.append(pdk.Layer("ScatterplotLayer", [p], get_position="position", radius_units="pixels",
+                                get_radius=size, get_fill_color=color + [255], pickable=True))
+    # Centre on the alerts shown: Europe and Asia for the scenario, the Americas for today's news.
+    lons = [p["position"][0] for p in points] or [60.0]
+    st.pydeck_chart(deck(layers, lon=sum(lons) / len(lons), lat=20.0, zoom=1.2), height=400)
+
+
 def show_radar() -> None:
     mode = st.segmented_control("News source", ["Scenario news", "Live news"], default="Scenario news",
                                 key="radar_mode", label_visibility="collapsed")
@@ -430,6 +536,8 @@ def show_radar() -> None:
         st.caption("Before you ask: every serious news alert of the last 3 days that names a port, "
                    "with what is left of it simulated on the graph, ranked by the cargo that would arrive "
                    "later than customers tolerate.")
+    if rows:
+        show_radar_map(rows[:6])
     for i, r in enumerate(rows[:6]):
         with st.container(border=True):
             left, middle, right = st.columns([5, 4, 1.4])

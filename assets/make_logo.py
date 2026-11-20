@@ -1,46 +1,31 @@
 """Draw the Ripple logo: python assets/make_logo.py  (writes logo.svg)
 
-One disruption (the node in the middle) sends rings outwards, like a stone
-in water; the white path hops from ring to ring, the way Ripple follows a
-port to its vessels, shipments and customers. logo.png is rendered from the SVG with
-headless Chrome: python assets/make_logo.py --png.
+A drop falls into water and the rings spread: one event, effects that travel
+outwards. logo.png (the browser tab icon) is rendered from the SVG with
+headless Chrome.
 """
 
-import math
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-TEAL, MINT, NAVY_TOP, NAVY_BOTTOM = "#22D3EE", "#5EEAD4", "#14213D", "#070B17"
-C = 64  # the disruption, in the middle
-# radius, ring opacity, where the path crosses the ring (degrees)
-RINGS = [(22, 0.9, 70), (38, 0.6, 22), (54, 0.35, 52)]
-
-
-def on_ring(radius: float, degrees: float) -> tuple[float, float]:
-    a = math.radians(degrees)
-    return round(C + radius * math.cos(a), 1), round(C - radius * math.sin(a), 1)
+BLUE, INDIGO = "#3B82F6", "#6366F1"
 
 
 def svg() -> str:
-    rings = "".join(f'<circle cx="{C}" cy="{C}" r="{r}" stroke-opacity="{o}"/>' for r, o, _ in RINGS)
-    hops = [on_ring(r, d) for r, _, d in RINGS]
-    path = "M" + " L".join(f"{x} {y}" for x, y in [(C, C)] + hops)
-    dots = "".join(f'<circle cx="{x}" cy="{y}" r="{6.5 - i}"/>' for i, (x, y) in enumerate(hops))
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Ripple">
   <title>Ripple</title>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="{NAVY_TOP}"/><stop offset="1" stop-color="{NAVY_BOTTOM}"/>
-    </linearGradient>
-    <linearGradient id="wave" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="{TEAL}"/><stop offset="1" stop-color="{MINT}"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="{BLUE}"/><stop offset="1" stop-color="{INDIGO}"/>
     </linearGradient>
   </defs>
   <rect width="128" height="128" rx="30" fill="url(#bg)"/>
-  <g fill="none" stroke="url(#wave)" stroke-width="3.5">{rings}</g>
-  <path d="{path}" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-  <g fill="#FFFFFF">{dots}</g>
-  <circle cx="{C}" cy="{C}" r="10" fill="url(#wave)" stroke="{NAVY_BOTTOM}" stroke-width="2.5"/>
+  <path d="M64 16 C64 16 44 42 44 56 a20 20 0 0 0 40 0 C84 42 64 16 64 16Z" fill="#FFFFFF"/>
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
+    <ellipse cx="64" cy="98" rx="20" ry="5.5" stroke-width="5"/>
+    <path d="M26 98 a38 11 0 0 0 76 0" stroke-width="4" stroke-opacity="0.6"/>
+    <path d="M14 99 a50 15 0 0 0 100 0" stroke-width="3" stroke-opacity="0.3"/>
+  </g>
 </svg>
 """
 

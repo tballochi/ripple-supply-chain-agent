@@ -35,10 +35,10 @@ st.set_page_config(page_title="Ripple · supply chain disruption agent", page_ic
 # A few styles on top of the theme in .streamlit/config.toml.
 st.markdown("""<style>
 .block-container {padding-top: 3.6rem; max-width: 1280px}
-.rp-eyebrow {color: #5EEAD4; font-weight: 600; letter-spacing: .09em; text-transform: uppercase;
+.rp-eyebrow {color: #A5B4FC; font-weight: 600; letter-spacing: .09em; text-transform: uppercase;
              font-size: .78rem; margin-bottom: .35rem}
 .rp-title {font-size: 2.65rem; line-height: 1.08; font-weight: 800; letter-spacing: -.02em; margin: 0 0 .7rem;
-           background: linear-gradient(90deg, #FFFFFF 30%, #8BE9F8); -webkit-background-clip: text;
+           background: linear-gradient(90deg, #FFFFFF 30%, #A5B4FC); -webkit-background-clip: text;
            background-clip: text; color: transparent}
 .rp-lead {color: #A9B6CC; font-size: 1.08rem; max-width: 52rem; margin-bottom: 1.1rem}
 .rp-grid {display: grid; gap: 14px; margin: .4rem 0 1.4rem}
@@ -47,14 +47,14 @@ st.markdown("""<style>
 .rp-big small {font-size: 1rem; font-weight: 600; color: #7C8BA5}
 .rp-label {color: #C9D4E5; font-weight: 600; margin-top: .25rem}
 .rp-muted {color: #8494AE; font-size: .88rem; margin-top: .2rem}
-.rp-accent {color: #22D3EE}
+.rp-accent {color: #60A5FA}
 .rp-bad {color: #FB7185}
 .rp-good {color: #34D399}
 .rp-step {display: flex; gap: 12px; align-items: flex-start}
 .rp-num {flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
-         background: rgba(34, 211, 238, .14); color: #22D3EE; font-weight: 700; font-size: .9rem}
-.rp-verdict {background: linear-gradient(135deg, rgba(34, 211, 238, .13), #121A2C 55%);
-             border: 1px solid rgba(34, 211, 238, .35); border-radius: 18px; padding: 20px 22px; margin: .3rem 0 1rem}
+         background: rgba(96, 165, 250, .14); color: #60A5FA; font-weight: 700; font-size: .9rem}
+.rp-verdict {background: linear-gradient(135deg, rgba(96, 165, 250, .13), #121A2C 55%);
+             border: 1px solid rgba(96, 165, 250, .35); border-radius: 18px; padding: 20px 22px; margin: .3rem 0 1rem}
 .rp-verdict h3 {margin: 0 0 .8rem; font-size: 1.35rem}
 .rp-row {display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: .9rem; padding-top: .9rem;
          border-top: 1px solid #22304D; color: #C9D4E5}

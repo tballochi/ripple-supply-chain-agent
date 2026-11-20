@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo.svg" width="112" alt="Ripple logo: a silver spider web with a red node where a disruption starts"></p>
+<p align="center"><img src="assets/logo.svg" width="112" alt="Ripple logo: a drop falling into water, its rings spreading"></p>
 
 <h1 align="center">Ripple</h1>
 

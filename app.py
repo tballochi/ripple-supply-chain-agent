@@ -34,9 +34,15 @@ st.set_page_config(page_title="Ripple · supply chain disruption agent", page_ic
 
 # A few styles on top of the theme in .streamlit/config.toml.
 st.markdown("""<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap');
 .block-container {padding-top: 3.6rem; max-width: 1280px}
 .rp-eyebrow {color: #A5B4FC; font-weight: 600; letter-spacing: .09em; text-transform: uppercase;
              font-size: .78rem; margin-bottom: .35rem}
+.rp-hero {display: flex; align-items: center; gap: 32px; margin-bottom: .4rem}
+.rp-hero > div:first-child {flex: 1; min-width: 0}
+.rp-hero svg {flex: none; width: 210px; height: 210px}
+.rp-title, .rp-big, .rp-verdict h3, .rp-wordmark {font-family: "Space Grotesk", Inter, sans-serif}
+.rp-wordmark {font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; line-height: 1}
 .rp-title {font-size: 2.65rem; line-height: 1.08; font-weight: 800; letter-spacing: -.02em; margin: 0 0 .7rem;
            background: linear-gradient(90deg, #FFFFFF 30%, #A5B4FC); -webkit-background-clip: text;
            background-clip: text; color: transparent}
@@ -61,8 +67,18 @@ st.markdown("""<style>
 .rp-pill {display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600}
 .rp-high {background: rgba(251, 113, 133, .15); color: #FB7185}
 .rp-medium {background: rgba(251, 191, 36, .15); color: #FBBF24}
-@media (max-width: 760px) {.rp-title {font-size: 2rem} .rp-grid {grid-template-columns: 1fr !important}}
+@media (max-width: 760px) {.rp-hero svg {display: none} .rp-title {font-size: 2rem}
+                           .rp-grid {grid-template-columns: 1fr !important}}
 </style>""", unsafe_allow_html=True)
+
+
+# The logo's three circles as line art: the disruption, then each hop it reaches.
+HERO_ART = ('<svg viewBox="0 0 128 128" aria-hidden="true">'
+            '<circle cx="72.2" cy="55.8" r="54" fill="none" stroke="#1E40AF" stroke-width="1.2"/>'
+            '<circle cx="59.5" cy="68.5" r="36" fill="none" stroke="#2563EB" stroke-width="1.6"/>'
+            '<circle cx="46.7" cy="81.3" r="18" fill="#FFFFFF"/>'
+            '<circle cx="110.4" cy="17.6" r="3.2" fill="#1E40AF"/><circle cx="85" cy="43" r="3.2" fill="#2563EB"/>'
+            '<circle cx="34" cy="94" r="2.2" fill="#60A5FA"/></svg>')
 
 
 def html(markup: str) -> None:
@@ -316,7 +332,7 @@ with st.sidebar:
     logo = base64.b64encode((ASSETS / "logo.svg").read_bytes()).decode()
     html(f'<div style="display:flex;align-items:center;gap:12px;margin:.2rem 0 .3rem">'
          f'<img src="data:image/svg+xml;base64,{logo}" width="46" alt="">'
-         f'<div><div style="font-size:1.6rem;font-weight:800;letter-spacing:-.02em;line-height:1">Ripple</div>'
+         f'<div><div class="rp-wordmark">Ripple</div>'
          f'<div class="rp-muted" style="margin:0">Disruption agent on a Relate graph</div></div></div>')
     if llm.available():
         use_llm = st.toggle(f"Use LLM ({llm.provider()})", value=True)
@@ -353,11 +369,12 @@ if "question" not in st.session_state and st.query_params.get("q"):
 if st.session_state.get("question"):
     html('<div class="rp-eyebrow">What happens if...?</div>')
 else:
-    html('<div class="rp-eyebrow">Supply chain disruption agent · built on Relate</div>'
+    html('<div class="rp-hero"><div>'
+         '<div class="rp-eyebrow">Supply chain disruption agent · built on Relate</div>'
          '<div class="rp-title">A port closes. Who is hit,<br>three hops later?</div>'
          '<div class="rp-lead">Describe a disruption in plain English. Ripple walks a Relate graph from the '
          'port to the vessels due there, the cargo on board, the customers waiting for it and the companies '
-         'they supply, and shows the exact path behind every answer.</div>')
+         'they supply, and shows the exact path behind every answer.</div></div>' + HERO_ART + '</div>')
 question = st.text_input("Describe a disruption in plain English, then ask follow-ups "
                          "(\"and if it lasts a week?\", \"what about Antwerp instead?\")", key="question",
                          placeholder="Describe a disruption, e.g. Port of Rotterdam closed for 3 days",

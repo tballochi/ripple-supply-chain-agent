@@ -1,31 +1,35 @@
 """Draw the Ripple logo: python assets/make_logo.py  (writes logo.svg)
 
-A drop falls into water and the rings spread: one event, effects that travel
-outwards. logo.png (the browser tab icon) is rendered from the SVG with
-headless Chrome.
+Three circles touching at one point, each larger than the last: a ripple
+drawn with a compass. The white circle is the disruption, the blue ones are
+what it reaches, hop after hop. logo.png (the browser tab icon) is rendered
+from the SVG with headless Chrome.
 """
 
+import math
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-BLUE, INDIGO = "#3B82F6", "#6366F1"
+TOUCH = (34, 94)  # the point all three circles share, bottom left
+CIRCLES = [(54, "#1E40AF"), (36, "#2563EB"), (18, "#FFFFFF")]  # radius, colour, largest first
+BACKGROUND = ("#0F1B3D", "#060A16")
 
 
 def svg() -> str:
+    # Each centre sits on the diagonal through TOUCH, one radius away from it,
+    # so every circle is tangent to the others at that point.
+    step = 1 / math.sqrt(2)
+    circles = "".join(f'<circle cx="{TOUCH[0] + r * step:.1f}" cy="{TOUCH[1] - r * step:.1f}" r="{r}" fill="{c}"/>'
+                      for r, c in CIRCLES)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Ripple">
   <title>Ripple</title>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="{BLUE}"/><stop offset="1" stop-color="{INDIGO}"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{BACKGROUND[0]}"/><stop offset="1" stop-color="{BACKGROUND[1]}"/>
     </linearGradient>
   </defs>
-  <rect width="128" height="128" rx="30" fill="url(#bg)"/>
-  <path d="M64 16 C64 16 44 42 44 56 a20 20 0 0 0 40 0 C84 42 64 16 64 16Z" fill="#FFFFFF"/>
-  <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
-    <ellipse cx="64" cy="98" rx="20" ry="5.5" stroke-width="5"/>
-    <path d="M26 98 a38 11 0 0 0 76 0" stroke-width="4" stroke-opacity="0.6"/>
-    <path d="M14 99 a50 15 0 0 0 100 0" stroke-width="3" stroke-opacity="0.3"/>
-  </g>
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+  {circles}
 </svg>
 """
 

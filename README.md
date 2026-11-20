@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo.svg" width="112" alt="Ripple logo: a drop falling into water, its rings spreading"></p>
+<p align="center"><img src="assets/logo.svg" width="112" alt="Ripple logo: three circles touching at one point, a ripple drawn with a compass"></p>
 
 <h1 align="center">Ripple</h1>
 

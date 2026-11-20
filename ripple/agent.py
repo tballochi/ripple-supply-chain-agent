@@ -404,8 +404,13 @@ def answer(conn, question: str, use_llm: bool | None = None, previous: dict | No
         try:
             out["earlier"] = workspace.recall(plan["ports"], plan["vessels"])
             if out["earlier"]:
+                # The same question asked several times is listed once, with a count.
+                asked = {}
+                for e in out["earlier"]:
+                    asked.setdefault(e["question"], [e, 0])[1] += 1
                 out["explanation"] += "\n\n**Earlier analyses** (from the agent's memory): " + "; ".join(
-                    f"“{e['question']}”: {e['shipments']} shipments late" for e in out["earlier"][:3]) + "."
+                    f"“{q}”: {e['shipments']} shipments late" + (f" (asked {n} times)" if n > 1 else "")
+                    for q, (e, n) in list(asked.items())[:3]) + "."
             workspace.record_episode(out)
             steps.append(f"Memory: {len(out['earlier'])} earlier analysis(es) recalled, this one recorded")
         except Exception as error:  # memory must never break an answer

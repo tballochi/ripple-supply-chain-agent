@@ -1,4 +1,4 @@
-# Ripple's look: the colours of the logo (assets/make_logo.py).
+# Ripple's look: the colours of the logo (assets/make_logo.py), geometric headings.
 [theme]
 base = "dark"
 primaryColor = "#60A5FA"
@@ -9,6 +9,7 @@ linkColor = "#A5B4FC"
 borderColor = "#1F2A44"
 baseRadius = "0.75rem"
 font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+headingFont = "'Space Grotesk':https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap"
 codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
 showWidgetBorder = true
 

@@ -18,7 +18,10 @@ All the "who is affected" logic is in Cypher. Python only scores and formats
 the rows that come back.
 """
 
+import re
+import shlex
 import sys
+import time
 from datetime import date, timedelta
 
 from . import db
@@ -106,6 +109,49 @@ PRIORITY_WEIGHT = {"standard": 1, "express": 2, "critical": 3}
 TIER_WEIGHT = {"standard": 1.0, "key": 1.5, "strategic": 2.0}
 
 
+# ------------------------------------------------------------------- trace
+# Every query sent to Relate for an answer is recorded with its parameters,
+# row count and time, so the UI can show what ran and how to replay it.
+
+def _run(conn, trace: list, name: str, cypher: str, params: dict) -> list:
+    started = time.perf_counter()
+    rows = conn.execute(cypher, params).fetchall()
+    trace.append({"name": name, "cypher": cypher.strip(), "params": params, "rows": len(rows),
+                  "ms": round((time.perf_counter() - started) * 1000, 1)})
+    return rows
+
+
+def cypher_literal(value) -> str:
+    """A Python value written as a Cypher literal."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return repr(value)
+    if isinstance(value, date):
+        return f"date('{value.isoformat()}')"
+    if isinstance(value, dict):
+        return "{" + ", ".join(f"{k}: {cypher_literal(v)}" for k, v in value.items()) + "}"
+    if isinstance(value, (list, tuple)):
+        return "[" + ", ".join(cypher_literal(v) for v in value) + "]"
+    if value is None:
+        return "null"
+    return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def inline(cypher: str, params: dict) -> str:
+    """The query with its $parameters replaced by literals, to paste anywhere."""
+    return re.sub(r"\$(\w+)", lambda m: cypher_literal(params[m.group(1)]), cypher)
+
+
+def cli_command(cypher: str, params: dict, store: str = "data/ripple.relate") -> str:
+    """The same query for Relate's own command line, read-only, on the committed store."""
+    query = " ".join(line.split("//")[0].strip() for line in inline(cypher, params).splitlines())
+    query = " ".join(query.split())
+    # Double quotes read better; fall back to shell quoting if the query holds a special character.
+    quoted = f'"{query}"' if not set(query) & set('"$`\\!') else shlex.quote(query)
+    return f"relate --database {store} --read-only --mode table {quoted}"
+
+
 def path_text(nodes: list, rels: list) -> str:
     """Render a path as 'Rotterdam <-[CALLS_AT]- Route <-[SAILS]- Vessel ...'."""
     out = nodes[0]["name"]
@@ -122,7 +168,7 @@ def score(row: dict) -> float:
     return row["delay_days"] * PRIORITY_WEIGHT[row["priority"]] * TIER_WEIGHT[row["tier"]] * breach
 
 
-def _analyze(conn, impact_rows: list, alternatives: list, disruption: dict) -> dict:
+def _analyze(conn, impact_rows: list, alternatives: list, disruption: dict, trace: list) -> dict:
     """Shared second half: score, rank, find downstream customers, summarize."""
     impacted = []
     for row in impact_rows:
@@ -142,7 +188,7 @@ def _analyze(conn, impact_rows: list, alternatives: list, disruption: dict) -> d
     late_inputs = [{"shipment": r["shipment"], "delay_days": r["delay_days"]}
                    for r in impacted if r["sla_breached"]]
     downstream = []
-    for row in conn.execute(DOWNSTREAM, {"late": late_inputs}):
+    for row in _run(conn, trace, "Ripple through suppliers (SUPPLIES*1..3)", DOWNSTREAM, {"late": late_inputs}):
         row = dict(row)
         row["path"] = path_text(row["path_nodes"], row["path_rels"])
         downstream.append(row)
@@ -164,6 +210,7 @@ def _analyze(conn, impact_rows: list, alternatives: list, disruption: dict) -> d
         "impacted": impacted,
         "downstream": downstream,
         "alternatives": alternatives,
+        "trace": trace,
     }
 
 
@@ -173,12 +220,14 @@ def port_closure(conn, code: str, days: int, start: date = SCENARIO_DATE) -> dic
     if port is None:
         raise ValueError(f"Unknown port code: {code}")
     reopen = start + timedelta(days=days)
-    rows = conn.execute(PORT_IMPACT, {"code": code, "start": start, "reopen": reopen,
-                                      "on_board": ON_BOARD, "not_loaded": NOT_LOADED}).fetchall()
-    alternatives = [dict(r) for r in conn.execute(ALTERNATIVES, {"code": code})]
+    trace = []
+    rows = _run(conn, trace, "4-hop impact: port, routes, vessels, shipments, customers", PORT_IMPACT,
+                {"code": code, "start": start, "reopen": reopen, "on_board": ON_BOARD, "not_loaded": NOT_LOADED})
+    alternatives = [dict(r) for r in _run(conn, trace, "Fallback ports (NEAR, shared routes)", ALTERNATIVES,
+                                          {"code": code})]
     disruption = {"kind": "port_closure", "code": code, "name": port["name"],
                   "days": days, "start": start, "reopen": reopen}
-    return _analyze(conn, rows, alternatives, disruption)
+    return _analyze(conn, rows, alternatives, disruption, trace)
 
 
 def vessel_outage(conn, imo: str, days: int, start: date = SCENARIO_DATE) -> dict:
@@ -186,10 +235,12 @@ def vessel_outage(conn, imo: str, days: int, start: date = SCENARIO_DATE) -> dic
     vessel = conn.execute("MATCH (v:Vessel {imo: $imo}) RETURN v.name AS name", {"imo": imo}).fetchone()
     if vessel is None:
         raise ValueError(f"Unknown vessel: {imo}")
-    rows = conn.execute(VESSEL_IMPACT, {"imo": imo, "days": days, "vessel_down": VESSEL_DOWN}).fetchall()
+    trace = []
+    rows = _run(conn, trace, "Vessel impact: vessel, shipments, customers", VESSEL_IMPACT,
+                {"imo": imo, "days": days, "vessel_down": VESSEL_DOWN})
     disruption = {"kind": "vessel_outage", "code": imo, "name": vessel["name"],
                   "days": days, "start": start, "reopen": start + timedelta(days=days)}
-    return _analyze(conn, rows, [], disruption)
+    return _analyze(conn, rows, [], disruption, trace)
 
 
 def combine(results: list) -> dict:

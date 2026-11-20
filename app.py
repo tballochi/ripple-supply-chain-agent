@@ -17,7 +17,7 @@ import pydeck as pdk
 import streamlit as st
 import streamlit.components.v1 as components
 
-from ripple import agent, db, geo, live, llm, mitigation, plain_rag, queries, radar, viz, workspace
+from ripple import agent, db, explore, geo, live, llm, mitigation, plain_rag, queries, radar, resilience, viz, workspace
 from ripple.generate import SCENARIO_DATE
 
 EXAMPLES = [
@@ -28,6 +28,7 @@ EXAMPLES = [
     "MV Silver Spirit is out of service for 4 days",
 ]
 COLORS = viz.COLORS
+PAGES = ["Ask Ripple", "Network weak points", "Inside the graph"]
 
 ASSETS = Path(__file__).resolve().parent / "assets"
 st.set_page_config(page_title="Ripple · supply chain disruption agent", page_icon=str(ASSETS / "logo.png"),
@@ -73,13 +74,11 @@ st.markdown("""<style>
 </style>""", unsafe_allow_html=True)
 
 
-# The logo's three circles as line art: the disruption, then each hop it reaches.
-HERO_ART = ('<svg viewBox="0 0 128 128" aria-hidden="true">'
-            '<circle cx="72.2" cy="55.8" r="54" fill="none" stroke="#1E40AF" stroke-width="1.2"/>'
-            '<circle cx="59.5" cy="68.5" r="36" fill="none" stroke="#2563EB" stroke-width="1.6"/>'
-            '<circle cx="46.7" cy="81.3" r="18" fill="#FFFFFF"/>'
-            '<circle cx="110.4" cy="17.6" r="3.2" fill="#1E40AF"/><circle cx="85" cy="43" r="3.2" fill="#2563EB"/>'
-            '<circle cx="34" cy="94" r="2.2" fill="#60A5FA"/></svg>')
+# The logo's three circles, without the tile (same geometry as assets/make_logo.py).
+HERO_ART = ('<svg viewBox="16 0 112 112" aria-hidden="true">'
+            '<circle cx="72.2" cy="55.8" r="54" fill="#1E40AF" fill-opacity=".55"/>'
+            '<circle cx="59.5" cy="68.5" r="36" fill="#2563EB" fill-opacity=".85"/>'
+            '<circle cx="46.7" cy="81.3" r="18" fill="#FFFFFF"/></svg>')
 
 
 def html(markup: str) -> None:
@@ -417,6 +416,7 @@ with st.sidebar:
          f'<img src="data:image/svg+xml;base64,{logo}" width="46" alt="">'
          f'<div><div class="rp-wordmark">Ripple</div>'
          f'<div class="rp-muted" style="margin:0">Disruption agent on a Relate graph</div></div></div>')
+    st.radio("Page", PAGES, key="page", label_visibility="collapsed")
     if llm.available():
         use_llm = st.toggle(f"Use LLM ({llm.provider()})", value=True)
     else:
@@ -446,22 +446,6 @@ with st.sidebar:
                  "The scenario's \"today\" is 1 December 2026.")
 
 # ---------------------------------------------------------------------- main
-# A link like  /?q=Port+of+Rotterdam+closed  opens the page with an answer.
-if "question" not in st.session_state and st.query_params.get("q"):
-    st.session_state["question"] = st.query_params["q"]
-if st.session_state.get("question"):
-    html('<div class="rp-eyebrow">What happens if...?</div>')
-else:
-    html('<div class="rp-hero"><div>'
-         '<div class="rp-eyebrow">Supply chain disruption agent · built on Relate</div>'
-         '<div class="rp-title">A port closes. Who is hit,<br>three hops later?</div>'
-         '<div class="rp-lead">Describe a disruption in plain English. Ripple walks a Relate graph from the '
-         'port to the vessels due there, the cargo on board, the customers waiting for it and the companies '
-         'they supply, and shows the exact path behind every answer.</div></div>' + HERO_ART + '</div>')
-question = st.text_input("Describe a disruption in plain English, then ask follow-ups "
-                         "(\"and if it lasts a week?\", \"what about Antwerp instead?\")", key="question",
-                         placeholder="Describe a disruption, e.g. Port of Rotterdam closed for 3 days",
-                         label_visibility="visible" if st.session_state.get("question") else "collapsed")
 
 @st.cache_data
 def radar_rows() -> list:
@@ -474,6 +458,7 @@ def radar_rows() -> list:
 
 def ask(question: str) -> None:
     """Button callback: run a question as a new scenario."""
+    st.session_state["page"] = PAGES[0]
     st.session_state["history"] = []
     st.session_state["question"] = question
 
@@ -652,68 +637,238 @@ def new_scenario() -> None:
     st.session_state["question"] = ""
 
 
-if question:
-    # The conversation so far: a follow-up ("and if it lasts a week?") reuses
-    # the plan of the previous question.
-    history = st.session_state.setdefault("history", [])
-    if history and history[-1]["question"] == question:  # same question, page re-run
-        previous = history[-2] if len(history) > 1 else None
+def show_under_the_hood(results: list) -> None:
+    """The Cypher queries Relate ran for this answer, with parameters, rows, time and a replay command."""
+    steps = [step for r in results for step in r.get("trace", [])]
+    if not steps:
+        return
+    total = sum(step["ms"] for step in steps)
+    with st.expander(f"Under the hood: {len(steps)} Cypher queries ran on Relate in {total:.0f} ms"):
+        st.markdown("Every number above comes from these queries on the embedded Relate store "
+                    "(`data/ripple.relate`), not from the language model. Copy a command to replay the same "
+                    "query read-only with Relate's own CLI and get the same rows.")
+        for i, step in enumerate(steps, 1):
+            st.markdown(f"**{i}. {step['name']}** · {step['rows']} rows · {step['ms']} ms")
+            st.code(step["cypher"], language="cypher")
+            params = {k: (v if isinstance(v, (int, float, str)) else str(v)) for k, v in step["params"].items()}
+            if step["params"].get("late"):
+                late = step["params"]["late"]
+                params["late"] = f"{len(late)} late shipments, e.g. {late[0]}"
+            st.caption("Parameters: " + ", ".join(f"`${k}` = {v}" for k, v in params.items()))
+            st.code(queries.cli_command(step["cypher"], step["params"]), language="bash")
+
+
+@st.cache_data(show_spinner="Simulating a closure of every port on the graph...")
+def weak_points(days: int) -> dict:
+    conn = db.connect()
+    try:
+        return resilience.rank_ports(conn, days)
+    finally:
+        conn.close()
+
+
+def weak_points_page() -> None:
+    html('<div class="rp-eyebrow">Before anything happens</div>'
+         '<div class="rp-title" style="font-size:2.2rem">Where is the network weakest?</div>'
+         '<div class="rp-lead">The radar reacts to today\'s news. This page looks ahead: Ripple closes every '
+         'port of the graph in turn and measures the damage with the same multi-hop analysis as a question, '
+         'plus one Cypher query that counts how many customers depend on each port, up to 3 supplier tiers '
+         'away.</div>')
+    days = st.select_slider("Closure length (days)", [1, 2, 3, 5, 7, 10, 14], value=3, key="wp_days")
+    report = weak_points(days)
+    ports = report["ports"]
+    hit = [p for p in ports if p["shipments"]]
+    customers = graph_stats()["nodes"]["Customer"]
+    grid([
+        card(f'{report["queries"]}', "Cypher queries on Relate",
+             f'{report["ms"]:.0f} ms for the whole network, {len(ports)} ports closed one at a time.'),
+        card(escape(ports[0]["name"]), "hurts most",
+             f'{agent.money(ports[0]["value_beyond_tolerance_usd"])} of cargo later than customers tolerate, '
+             f'{ports[0]["shipments"]} shipments late.'),
+        card(f'{max(p["dependent_customers"] for p in ports)} <small>of {customers}</small>',
+             "customers depend on the most central port",
+             "Directly or up to 3 supplier tiers away, whatever the dates."),
+    ], 3)
+    top = max(p["value_beyond_tolerance_usd"] for p in ports) or 1
+    points = []
+    for rank, p in enumerate(ports, 1):
+        share = p["value_beyond_tolerance_usd"] / top
+        color = RED if share > .5 else AMBER if share > .2 else BLUE if p["shipments"] else GREY
+        points.append({"position": [p["lon"], p["lat"]], "radius": 3 + 9 * share ** .5, "color": color + [230],
+                       "tip": f"<b>#{rank} {escape(p['name'])}</b><br>"
+                              f"{agent.money(p['value_beyond_tolerance_usd'])} beyond tolerance · "
+                              f"{p['shipments']} late<br>{p['dependent_customers']} customers depend on it"})
+    layer = pdk.Layer("ScatterplotLayer", points, get_position="position", radius_units="pixels",
+                      get_radius="radius", get_fill_color="color", stroked=True, get_line_color=[10, 15, 28, 255],
+                      line_width_min_pixels=1, pickable=True)
+    st.pydeck_chart(deck([layer], lon=40.0, lat=22.0, zoom=0.95), height=420)
+    html('<div class="rp-muted"><span class="rp-bad">●</span> most exposed &nbsp; '
+         '<span style="color:#FBBF24">●</span> exposed &nbsp; <span style="color:#60A5FA">●</span> some late '
+         'cargo &nbsp; <span style="color:#94A3B8">●</span> nothing due in that window. '
+         'Size: cargo later than customers tolerate.</div>')
+    st.dataframe(pd.DataFrame([{
+        "Rank": i, "Port": p["name"], "Beyond tolerance": p["value_beyond_tolerance_usd"],
+        "Shipments late": p["shipments"], "Customers hit": p["customers"], "Via suppliers": p["ripple_customers"],
+        "Customers depending on it": p["dependent_customers"], "Routes": p["routes"], "Vessels": p["vessels"],
+    } for i, p in enumerate(ports, 1)]), hide_index=True, width="stretch",
+        column_config={"Beyond tolerance": st.column_config.NumberColumn(format="$%d"),
+                       "Customers depending on it": st.column_config.ProgressColumn(
+                           min_value=0, max_value=customers, format="%d")})
+    st.markdown("**Analyze one of the five weakest ports**")
+    for col, p in zip(st.columns(5), hit[:5], strict=False):  # fewer than 5 if few ports are hit
+        col.button(p["name"], key=f"wp-{p['code']}", on_click=ask, args=(p["question"],), width="stretch")
+    with st.expander(f"The dependence query ({report['dependence_ms']} ms on Relate)"):
+        st.code(report["dependence_cypher"], language="cypher")
+        st.code(queries.cli_command(report["dependence_cypher"], {}), language="bash")
+
+
+@st.cache_data
+def graph_model() -> dict:
+    conn = db.connect()
+    try:
+        return explore.overview(conn)
+    finally:
+        conn.close()
+
+
+def run_console(cypher: str) -> dict:
+    conn = db.connect()
+    try:
+        return explore.run(conn, cypher)
+    finally:
+        conn.close()
+
+
+def pick_example() -> None:
+    st.session_state["console"] = explore.EXAMPLES[st.session_state["console_example"]].strip()
+
+
+def graph_page() -> None:
+    html('<div class="rp-eyebrow">Read live from the Relate store</div>'
+         '<div class="rp-title" style="font-size:2.2rem">Inside the graph</div>'
+         '<div class="rp-lead">The data model below is not drawn by hand: Ripple asks Relate for it '
+         '(<code>CALL db.schema.nodeTypeProperties()</code>, one count over every relationship, '
+         '<code>SHOW INDEXES</code>). Then try your own Cypher; anything that would write is refused.</div>')
+    model = graph_model()
+    grid([card(f'{item["count"]:,}', escape(item["label"]) + "s") for item in model["labels"]], 4)
+    st.graphviz_chart(explore.schema_dot(model), width="stretch")
+    left, right = st.columns(2)
+    with left:
+        st.markdown("**Indexes Relate maintains**")
+        st.dataframe(pd.DataFrame(model["indexes"]).rename(columns={"name": "Index", "type": "Type", "on": "On"}),
+                     hide_index=True, width="stretch")
+    with right:
+        st.markdown("**Properties by label**")
+        for item in model["labels"]:
+            st.caption(f"**{item['label']}**: " + ", ".join(item["properties"]))
+    st.subheader("Cypher console")
+    names = list(explore.EXAMPLES)
+    st.session_state.setdefault("console", explore.EXAMPLES[names[0]].strip())
+    st.selectbox("Start from an example", names, key="console_example", on_change=pick_example)
+    cypher = st.text_area("Cypher (read-only)", key="console", height=170)
+    if st.button("Run on Relate", type="primary"):
+        try:
+            result = run_console(cypher)
+        except Exception as error:  # refused or invalid: say why, never crash the page
+            st.error(f"Not run: {error}")
+        else:
+            st.caption(f"{len(result['rows'])} row(s){' (first 50)' if result['truncated'] else ''} · "
+                       f"{result['ms']} ms on Relate · checked read-only with EXPLAIN first")
+            st.dataframe(pd.DataFrame(result["rows"], columns=result["columns"]), hide_index=True,
+                         width="stretch")
+            st.code(queries.cli_command(result["cypher"], {}), language="bash")
+
+
+def ask_page() -> None:
+    # A link like  /?q=Port+of+Rotterdam+closed  opens the page with an answer.
+    if "question" not in st.session_state and st.query_params.get("q"):
+        st.session_state["question"] = st.query_params["q"]
+    if st.session_state.get("question"):
+        html('<div class="rp-eyebrow">What happens if...?</div>')
     else:
-        previous = history[-1] if history else None
-    with st.spinner("Walking the graph..."):
-        out = run_agent(question, use_llm, json.dumps(previous, default=str) if previous else "")
-    if not history or history[-1]["question"] != question:
-        history.append({"question": question, "plan": json.loads(json.dumps(out["plan"], default=str))})
+        html('<div class="rp-hero"><div>'
+             '<div class="rp-eyebrow">Supply chain disruption agent · built on Relate</div>'
+             '<div class="rp-title">A port closes. Who is hit,<br>three hops later?</div>'
+             '<div class="rp-lead">Describe a disruption in plain English. Ripple walks a Relate graph from the '
+             'port to the vessels due there, the cargo on board, the customers waiting for it and the companies '
+             'they supply, and shows the exact path behind every answer.</div></div>' + HERO_ART + '</div>')
+    question = st.text_input("Describe a disruption in plain English, then ask follow-ups "
+                             "(\"and if it lasts a week?\", \"what about Antwerp instead?\")", key="question",
+                             placeholder="Describe a disruption, e.g. Port of Rotterdam closed for 3 days",
+                             label_visibility="visible" if st.session_state.get("question") else "collapsed")
+    if question:
+        # The conversation so far: a follow-up ("and if it lasts a week?") reuses
+        # the plan of the previous question.
+        history = st.session_state.setdefault("history", [])
+        if history and history[-1]["question"] == question:  # same question, page re-run
+            previous = history[-2] if len(history) > 1 else None
+        else:
+            previous = history[-1] if history else None
+        with st.spinner("Walking the graph..."):
+            out = run_agent(question, use_llm, json.dumps(previous, default=str) if previous else "")
+        if not history or history[-1]["question"] != question:
+            history.append({"question": question, "plan": json.loads(json.dumps(out["plan"], default=str))})
 
-    if out["plan"].get("follow_up_of"):
-        left, right = st.columns([4, 1])
-        left.caption(f"↪ Follow-up of “{out['plan']['follow_up_of']}”: same scenario, with what you changed.")
-        right.button("New scenario", on_click=new_scenario, width="stretch")
+        if out["plan"].get("follow_up_of"):
+            left, right = st.columns([4, 1])
+            left.caption(f"↪ Follow-up of “{out['plan']['follow_up_of']}”: same scenario, with what you changed.")
+            right.button("New scenario", on_click=new_scenario, width="stretch")
 
-    if out["results"] and any(r["impacted"] for r in out["results"]):
-        show_verdict(out)
-    with st.container(border=True):
-        html(f'<div class="rp-eyebrow">Ripple\'s analysis · '
-             f'{"written by the LLM from the graph paths" if out["explained_by"] == "llm" else "rule-based"}</div>')
-        st.markdown(out["explanation"])
-    if out.get("data_answer") and len(out["data_answer"]["rows"]) > 10:
-        with st.expander(f"All {len(out['data_answer']['rows'])} rows"):
-            st.dataframe(pd.DataFrame(out["data_answer"]["rows"]), hide_index=True, width="stretch")
-    with st.expander("How the agent got there"):
-        for step in out["steps"]:
-            st.markdown(f"- {step}")
-        if out["plan"]["reasoning"]:
-            st.markdown(f"- LLM reasoning: {out['plan']['reasoning']}")
-        alerts = out["retrieval"]["alerts"]
-        if alerts:
-            st.markdown("**Related news alerts** (ranked by fusing a word search and a meaning search)")
-            st.dataframe(pd.DataFrame([{
-                "Fused score": a["rrf"], "Rank by meaning": a["vector_rank"], "Rank by words": a["fulltext_rank"],
-                "Alert": a["text"], "Mentions": ", ".join(p["name"] for p in a["ports"]),
-            } for a in alerts]), hide_index=True, width="stretch")
+        if out["results"] and any(r["impacted"] for r in out["results"]):
+            show_verdict(out)
+        with st.container(border=True):
+            html(f'<div class="rp-eyebrow">Ripple\'s analysis · '
+                 f'{"written by the LLM from the graph paths" if out["explained_by"] == "llm" else "rule-based"}</div>')
+            st.markdown(out["explanation"])
+        if out.get("data_answer") and len(out["data_answer"]["rows"]) > 10:
+            with st.expander(f"All {len(out['data_answer']['rows'])} rows"):
+                st.dataframe(pd.DataFrame(out["data_answer"]["rows"]), hide_index=True, width="stretch")
+        with st.expander("How the agent got there"):
+            for step in out["steps"]:
+                st.markdown(f"- {step}")
+            if out["plan"]["reasoning"]:
+                st.markdown(f"- LLM reasoning: {out['plan']['reasoning']}")
+            alerts = out["retrieval"]["alerts"]
+            if alerts:
+                st.markdown("**Related news alerts** (ranked by fusing a word search and a meaning search)")
+                st.dataframe(pd.DataFrame([{
+                    "Fused score": a["rrf"], "Rank by meaning": a["vector_rank"], "Rank by words": a["fulltext_rank"],
+                    "Alert": a["text"], "Mentions": ", ".join(p["name"] for p in a["ports"]),
+                } for a in alerts]), hide_index=True, width="stretch")
 
-    if out["results"]:
-        tab_impact, tab_compare = st.tabs(["Impact", "Graph vs plain RAG"])
-        with tab_impact:
-            if len(out["results"]) > 1:
-                c = queries.combine(out["results"])
-                st.subheader(f"Combined: {len(out['results'])} disruptions at once")
-                cols = st.columns(5)
-                cols[0].metric("Unique shipments late", c["shipments"], border=True)
-                cols[1].metric("Unique customers", c["customers"], border=True)
-                cols[2].metric("Beyond tolerance (all)", c["sla_breaches"], border=True)
-                cols[3].metric("Cargo value (all)", agent.money(c["value_at_risk_usd"]), border=True)
-                cols[4].metric("Hit twice, counted once", c["double_counted"], border=True)
-                st.divider()
-            for index, result in enumerate(out["results"]):
-                if index:
+        show_under_the_hood(out["results"])
+
+        if out["results"]:
+            tab_impact, tab_compare = st.tabs(["Impact", "Graph vs plain RAG"])
+            with tab_impact:
+                if len(out["results"]) > 1:
+                    c = queries.combine(out["results"])
+                    st.subheader(f"Combined: {len(out['results'])} disruptions at once")
+                    cols = st.columns(5)
+                    cols[0].metric("Unique shipments late", c["shipments"], border=True)
+                    cols[1].metric("Unique customers", c["customers"], border=True)
+                    cols[2].metric("Beyond tolerance (all)", c["sla_breaches"], border=True)
+                    cols[3].metric("Cargo value (all)", agent.money(c["value_at_risk_usd"]), border=True)
+                    cols[4].metric("Hit twice, counted once", c["double_counted"], border=True)
                     st.divider()
-                show_result(result, key=str(index))
-        with tab_compare:
-            show_comparison(question, out["results"])
+                for index, result in enumerate(out["results"]):
+                    if index:
+                        st.divider()
+                    show_result(result, key=str(index))
+            with tab_compare:
+                show_comparison(question, out["results"])
+    else:
+        st.pills("Try", EXAMPLES, key="example", on_change=lambda: ask(st.session_state["example"] or ""),
+                 label_visibility="collapsed")
+        show_pitch()
+        show_radar()
+        show_decision_log()
+
+
+page = st.session_state.get("page", PAGES[0])
+if page == PAGES[1]:
+    weak_points_page()
+elif page == PAGES[2]:
+    graph_page()
 else:
-    st.pills("Try", EXAMPLES, key="example", on_change=lambda: ask(st.session_state["example"] or ""),
-             label_visibility="collapsed")
-    show_pitch()
-    show_radar()
-    show_decision_log()
+    ask_page()

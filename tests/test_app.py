@@ -153,3 +153,32 @@ def test_live_radar_shows_real_headlines_without_the_network(monkeypatch):
     assert any("Skipped: GDACS" in c.value for c in page.caption)
     page.button(key="radar-Live news-0").click().run()
     assert page.session_state["question"] == "Port of Rotterdam closed for 3 days"
+
+
+def test_under_the_hood_lists_the_relate_queries():
+    page = render("Port of Rotterdam closed for 3 days")
+    assert any(e.label.startswith("Under the hood: 3 Cypher queries") for e in page.expander)
+    assert any(c.value.startswith("relate --database data/ripple.relate --read-only") for c in page.code)
+
+
+def test_weak_points_page_ranks_every_port():
+    page = AppTest.from_file(APP, default_timeout=60)
+    page.session_state["page"] = "Network weak points"
+    page.run()
+    assert not page.exception
+    assert len(page.dataframe[0].value) == 30
+    page.button(key="wp-NLRTM").click().run()
+    assert page.session_state["question"] == "Port of Rotterdam closed for 3 days"
+    assert page.session_state["page"] == "Ask Ripple" and page.metric
+
+
+def test_graph_page_runs_reads_and_refuses_writes():
+    page = AppTest.from_file(APP, default_timeout=60)
+    page.session_state["page"] = "Inside the graph"
+    page.run()
+    assert not page.exception
+    next(b for b in page.button if b.label == "Run on Relate").click().run()
+    assert any("checked read-only" in c.value for c in page.caption)
+    page.text_area[0].set_value("MATCH (n) DETACH DELETE n").run()
+    next(b for b in page.button if b.label == "Run on Relate").click().run()
+    assert any("would modify the graph" in e.value for e in page.error)

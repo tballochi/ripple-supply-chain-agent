@@ -517,9 +517,7 @@ def show_radar_map(rows: list) -> None:
                    for i, k in enumerate((2, 3.2))]  # hover a port for its name and alert
         layers.append(pdk.Layer("ScatterplotLayer", [p], get_position="position", radius_units="pixels",
                                 get_radius=size, get_fill_color=color + [255], pickable=True))
-    # Centre on the alerts shown: Europe and Asia for the scenario, the Americas for today's news.
-    lons = [p["position"][0] for p in points] or [60.0]
-    st.pydeck_chart(deck(layers, lon=sum(lons) / len(lons), lat=20.0, zoom=1.2), height=400)
+    st.pydeck_chart(deck(layers, lon=10.0, lat=18.0, zoom=0.9), height=440)
 
 
 def show_radar() -> None:
@@ -535,7 +533,8 @@ def show_radar() -> None:
         st.caption("Real events of the last 3 days from GDACS (cyclones, earthquakes, floods) and "
                    "Google News (strikes, closures, cyber incidents) that touch a port of the graph. The "
                    "ports and their positions are real; the closure is simulated on Ripple's synthetic "
-                   f"vessels and shipments as of {SCENARIO_DATE:%d %B %Y}.")
+                   f"vessels and shipments as of {SCENARIO_DATE:%d %B %Y}: the network's schedule is "
+                   "frozen at that date so that every run gives the same answer to the same news.")
         for problem in problems:
             st.caption(f"Skipped: {problem}. Showing the news fetched earlier, if any.")
         if not rows:

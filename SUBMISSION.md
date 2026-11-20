@@ -42,20 +42,25 @@ Live vessel positions, inventory buffers at customers, and plans that update ves
 
 ## 2. Demo video script (2 minutes)
 
-Before recording: open the live app (or `streamlit run app.py`) so it is warm, zoom the browser to
-110 %, and close other tabs. In LLM mode, leave about 20 seconds between questions (Groq's free
-tier allows 8,000 tokens a minute); without a key, everything is instant.
+**One message, said three times:** a port closes; the graph finds 29 late shipments, plain RAG on
+the same data finds 1. Everything else in the video supports that sentence.
+
+Before recording: open <https://ripple-supply-chain.streamlit.app> (or `streamlit run app.py`) a
+few minutes early so it is awake, zoom the browser to 110 %, close other tabs, collapse nothing.
+In LLM mode leave about 20 seconds between questions (Groq's free tier allows 8,000 tokens a
+minute); in rule-based mode everything is instant.
 
 | Time | On screen | Say |
 |---|---|---|
-| 0:00 to 0:15 | Home page: the **Risk radar** | "Before I ask anything, Ripple has read today's news and simulated it on a Relate graph of 30 ports, 40 vessels and 200 shipments. The Rotterdam strike is the worst: $5.8M of cargo late beyond tolerance." |
-| 0:15 to 0:35 | Click **Analyze** on Rotterdam. Scroll the explanation. | "29 shipments late, 26 customers. 14 are on board, 15 not loaded yet. Here is the path for the most exposed one: Rotterdam, the route, the vessel, the shipment, the customer." |
-| 0:35 to 0:50 | **Impact graph** tab, click Rotterdam, then a customer on the right | "One closure fanning out to every customer, and on to the companies they supply, up to two supplier tiers here." |
-| 0:50 to 1:08 | **Graph vs plain RAG** tab | "Same data, same question, written as documents for classic RAG: 1 delayed shipment out of 29, none of the 9 customers reached through suppliers. The graph follows relationships." |
-| 1:08 to 1:20 | **Mitigation** tab, Hamburg preselected, click **Save this plan** | "Divert to Hamburg: 13 shipments rescued, 8 of 14 tolerance breaches avoided, $2.9M protected. I keep it: it is written to the graph." |
-| 1:20 to 1:32 | Type **and if it lasts a week?** | "A follow-up: same port, now 7 days, 39 shipments." |
-| 1:32 to 1:50 | Click **The ransomware attack in Korea**, open **How the agent got there** | "No port in the question. Hybrid search finds the news alert, the alert MENTIONS Busan, and the graph does the rest: 13 shipments, 12 customers. Plain RAG: zero." |
-| 1:50 to 2:00 | README with the MCP tools | "Everything is also an MCP server, so any agent can ask these questions. Thanks!" |
+| 0:00 to 0:12 | Home page, the title | "When a port closes, the question is who is hit three hops later: which vessels, whose cargo, which customers. That answer is not written in any document. It is in the relationships." |
+| 0:12 to 0:30 | Click **Port of Rotterdam closed for 3 days**. The verdict card. | "Ripple walks a Relate graph: 29 shipments late, 26 customers, $5.8 million of cargo later than they tolerate. And on the same data, plain RAG finds one." |
+| 0:30 to 0:45 | **Graph vs plain RAG** tab | "That is the whole point. Every record turned into a document, the same word and meaning search: 1 shipment out of 29, 0 of the 9 customers hit through their suppliers. Retrieval finds the start; relationships find the consequences." |
+| 0:45 to 0:58 | **Impact** tab, **Impact map** | "One closure in Rotterdam, late cargo landing in eleven countries. In green, the way out." |
+| 0:58 to 1:10 | **Mitigation** tab, Hamburg preselected, **Save this plan** | "Divert to Hamburg: 13 shipments rescued, $2.9 million protected. I keep the plan; it is written back to the graph." |
+| 1:10 to 1:22 | Open **Under the hood** | "No number here comes from the language model. Three Cypher queries on Relate, a few milliseconds, and a command to replay each one with Relate's own CLI." |
+| 1:22 to 1:38 | Type **the ransomware attack in Korea** | "No port in the question. Hybrid search finds the news alert, the alert mentions Busan, the graph does the rest: 13 shipments late. Plain RAG: none." |
+| 1:38 to 1:50 | Sidebar: **Network weak points** | "Before anything happens: every port closed in turn, 91 queries in a fraction of a second. Rotterdam is the weakest link." |
+| 1:50 to 2:00 | Home, **Live news** | "And it reads today's real news. Ripple, on Relate. Thanks." |
 
 ## 3. Checklist: what you do yourself
 

@@ -2,8 +2,9 @@
 
 Run with:  python -m ripple.generate
 
-Everything is invented. Port names and coordinates are real places, but the
-routes, vessels, shipments, customers and news alerts are random. The random
+The ports are real: names, countries and positions (read from data/ports.csv,
+built from Wikidata and Natural Earth by python -m ripple.ports_source). The
+routes, vessels, shipments, customers and news alerts are invented. The random
 seed is fixed, so every run produces exactly the same graph.
 
 The script has two halves:
@@ -11,6 +12,7 @@ The script has two halves:
   2. load()           -> writes those lists into Relate with Cypher
 """
 
+import csv
 import json
 import math
 import random
@@ -35,39 +37,46 @@ SHIPMENTS_PER_SCHEDULED_VESSEL = 3
 HUBS = {"CNSHA", "SGSIN", "KRPUS", "EGPSD", "NLRTM"}
 SHIPMENTS_PER_HUB_VESSEL = 5  # two ports closer than this can stand in for each other
 
-# code, name, country, region, latitude, longitude
-PORTS = [
-    ("CNSHA", "Shanghai", "China", "East Asia", 31.23, 121.47),
-    ("CNNGB", "Ningbo", "China", "East Asia", 29.87, 121.55),
-    ("CNSZX", "Shenzhen", "China", "East Asia", 22.54, 114.05),
-    ("HKHKG", "Hong Kong", "Hong Kong", "East Asia", 22.30, 114.17),
-    ("KRPUS", "Busan", "South Korea", "East Asia", 35.10, 129.04),
-    ("JPTYO", "Tokyo", "Japan", "East Asia", 35.62, 139.77),
-    ("TWKHH", "Kaohsiung", "Taiwan", "East Asia", 22.61, 120.28),
-    ("SGSIN", "Singapore", "Singapore", "Southeast Asia", 1.26, 103.82),
-    ("VNSGN", "Ho Chi Minh City", "Vietnam", "Southeast Asia", 10.77, 106.70),
-    ("MYPKG", "Port Klang", "Malaysia", "Southeast Asia", 3.00, 101.39),
-    ("THLCH", "Laem Chabang", "Thailand", "Southeast Asia", 13.08, 100.88),
-    ("LKCMB", "Colombo", "Sri Lanka", "South Asia", 6.95, 79.85),
-    ("INNSA", "Nhava Sheva", "India", "South Asia", 18.95, 72.95),
-    ("AEJEA", "Jebel Ali", "United Arab Emirates", "Middle East", 25.01, 55.06),
-    ("EGPSD", "Port Said", "Egypt", "Middle East", 31.26, 32.30),
-    ("NLRTM", "Rotterdam", "Netherlands", "North Europe", 51.95, 4.14),
-    ("BEANR", "Antwerp", "Belgium", "North Europe", 51.26, 4.40),
-    ("DEHAM", "Hamburg", "Germany", "North Europe", 53.54, 9.98),
-    ("DEBRV", "Bremerhaven", "Germany", "North Europe", 53.54, 8.58),
-    ("FRLEH", "Le Havre", "France", "North Europe", 49.48, 0.11),
-    ("GBFXT", "Felixstowe", "United Kingdom", "North Europe", 51.96, 1.35),
-    ("ESVLC", "Valencia", "Spain", "Mediterranean", 39.44, -0.32),
-    ("ESALG", "Algeciras", "Spain", "Mediterranean", 36.13, -5.44),
-    ("ITGOA", "Genoa", "Italy", "Mediterranean", 44.40, 8.92),
-    ("GRPIR", "Piraeus", "Greece", "Mediterranean", 37.94, 23.63),
-    ("MAPTM", "Tanger Med", "Morocco", "Mediterranean", 35.89, -5.50),
-    ("USLAX", "Los Angeles", "United States", "North America", 33.73, -118.26),
-    ("USNYC", "New York", "United States", "North America", 40.67, -74.04),
-    ("USSAV", "Savannah", "United States", "North America", 32.08, -81.09),
-    ("BRSSZ", "Santos", "Brazil", "South America", -23.96, -46.30),
+# code, name, country, region (positions come from data/ports.csv)
+PORT_NAMES = [
+    ("CNSHA", "Shanghai", "China", "East Asia"),
+    ("CNNGB", "Ningbo", "China", "East Asia"),
+    ("CNSZX", "Shenzhen", "China", "East Asia"),
+    ("HKHKG", "Hong Kong", "Hong Kong", "East Asia"),
+    ("KRPUS", "Busan", "South Korea", "East Asia"),
+    ("JPTYO", "Tokyo", "Japan", "East Asia"),
+    ("TWKHH", "Kaohsiung", "Taiwan", "East Asia"),
+    ("SGSIN", "Singapore", "Singapore", "Southeast Asia"),
+    ("VNSGN", "Ho Chi Minh City", "Vietnam", "Southeast Asia"),
+    ("MYPKG", "Port Klang", "Malaysia", "Southeast Asia"),
+    ("THLCH", "Laem Chabang", "Thailand", "Southeast Asia"),
+    ("LKCMB", "Colombo", "Sri Lanka", "South Asia"),
+    ("INNSA", "Nhava Sheva", "India", "South Asia"),
+    ("AEJEA", "Jebel Ali", "United Arab Emirates", "Middle East"),
+    ("EGPSD", "Port Said", "Egypt", "Middle East"),
+    ("NLRTM", "Rotterdam", "Netherlands", "North Europe"),
+    ("BEANR", "Antwerp", "Belgium", "North Europe"),
+    ("DEHAM", "Hamburg", "Germany", "North Europe"),
+    ("DEBRV", "Bremerhaven", "Germany", "North Europe"),
+    ("FRLEH", "Le Havre", "France", "North Europe"),
+    ("GBFXT", "Felixstowe", "United Kingdom", "North Europe"),
+    ("ESVLC", "Valencia", "Spain", "Mediterranean"),
+    ("ESALG", "Algeciras", "Spain", "Mediterranean"),
+    ("ITGOA", "Genoa", "Italy", "Mediterranean"),
+    ("GRPIR", "Piraeus", "Greece", "Mediterranean"),
+    ("MAPTM", "Tanger Med", "Morocco", "Mediterranean"),
+    ("USLAX", "Los Angeles", "United States", "North America"),
+    ("USNYC", "New York", "United States", "North America"),
+    ("USSAV", "Savannah", "United States", "North America"),
+    ("BRSSZ", "Santos", "Brazil", "South America"),
 ]
+
+# Real positions, with the open-data record each one comes from.
+PORTS_CSV = Path(__file__).resolve().parent.parent / "data" / "ports.csv"
+POSITIONS = {row["code"]: row for row in csv.DictReader(PORTS_CSV.read_text().splitlines())}
+# code, name, country, region, latitude, longitude
+PORTS = [(c, n, co, r, float(POSITIONS[c]["latitude"]), float(POSITIONS[c]["longitude"]))
+         for c, n, co, r in PORT_NAMES]
 
 # id, name, ordered list of port calls
 ROUTES = [
@@ -190,7 +199,8 @@ def build_dataset() -> dict:
     rng = random.Random(SEED)
     coords = {code: (lat, lon) for code, _, _, _, lat, lon in PORTS}
 
-    ports = [dict(code=c, name=n, country=co, region=r, lat=lat, lon=lon)
+    ports = [dict(code=c, name=n, country=co, region=r, lat=lat, lon=lon,
+                  position_source=f"{POSITIONS[c]['source']} {POSITIONS[c]['record']}")
              for c, n, co, r, lat, lon in PORTS]
 
     # NEAR: pairs of ports close enough to be an alternative for each other.
@@ -354,7 +364,7 @@ def build_dataset() -> dict:
 # UNWIND, so one call creates all nodes (or relationships) of one kind.
 LOAD_STEPS = [
     ("ports", "UNWIND $rows AS r CREATE (:Port {code: r.code, name: r.name, country: r.country, "
-              "region: r.region, lat: r.lat, lon: r.lon, "
+              "region: r.region, lat: r.lat, lon: r.lon, position_source: r.position_source, "
               "location: point({latitude: r.lat, longitude: r.lon})})"),
     ("routes", "UNWIND $rows AS r CREATE (:Route {id: r.id, name: r.name, transit_days: r.transit_days})"),
     ("products", "UNWIND $rows AS r CREATE (:Product {sku: r.sku, name: r.name, category: r.category})"),

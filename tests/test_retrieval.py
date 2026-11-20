@@ -81,7 +81,7 @@ def test_hybrid_search_does_not_guess(conn, text):
 @pytest.mark.parametrize("text,expected", [
     ("storm within 500 km of Singapore", ["Singapore", "Port Klang"]),
     ("typhoon in the South China Sea", ["Ho Chi Minh City", "Hong Kong", "Shenzhen"]),
-    ("storm in the North Sea for 2 days", ["Bremerhaven", "Rotterdam", "Felixstowe", "Hamburg", "Antwerp"]),
+    ("storm in the North Sea for 2 days", ["Bremerhaven", "Felixstowe", "Rotterdam", "Hamburg", "Antwerp"]),
 ])
 def test_geography_selects_ports_by_distance(conn, fulltext_only, text, expected):
     assert port_names(retrieval.resolve(conn, text)) == expected  # nearest first

@@ -36,3 +36,17 @@ def test_store_has_a_multi_hop_path():
     finally:
         conn.close()
     assert row["shipments"] > 0 and row["customers"] > 0
+
+
+def test_ports_have_real_positions_with_their_source():
+    from ripple.generate import PORT_NAMES, POSITIONS
+    assert {c for c, *_ in PORT_NAMES} == set(POSITIONS)  # one open-data record per port
+    conn = db.connect()
+    try:
+        rows = {r["code"]: dict(r) for r in conn.execute(
+            "MATCH (p:Port) RETURN p.code AS code, p.lat AS lat, p.lon AS lon, p.position_source AS src")}
+    finally:
+        conn.close()
+    assert rows["NLRTM"]["src"] == "Wikidata Q1027807"  # the port itself, not the city
+    for code, row in POSITIONS.items():
+        assert rows[code]["lat"] == float(row["latitude"]) and rows[code]["lon"] == float(row["longitude"])

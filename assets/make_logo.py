@@ -1,65 +1,50 @@
-"""Draw the Ripple logo: a black app icon with a silver spider web, and one
-red node where the disruption starts.
+"""Draw the Ripple logo: python assets/make_logo.py  (writes logo.svg)
 
-Run:  python assets/make_logo.py   -> writes assets/logo.svg
+One disruption (the node in the middle) sends rings outwards, like a stone
+in water; the white path hops from ring to ring, the way Ripple follows a
+port to its vessels, shipments and customers. logo.png is rendered from the SVG with
+headless Chrome: python assets/make_logo.py --png.
 """
 
 import math
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-RED = "#FF3B30"
-SAG = 0.86  # silk between two spokes sags towards the centre
-
-DEFS = f'''<defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#26282E"/><stop offset="1" stop-color="#050506"/>
-    </linearGradient>
-    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#AEB5BF"/>
-      <stop offset="0.7" stop-color="#E9ECF0"/><stop offset="1" stop-color="#7D848E"/>
-    </linearGradient>
-    <radialGradient id="glow">
-      <stop offset="0" stop-color="{RED}" stop-opacity="0.75"/><stop offset="1" stop-color="{RED}" stop-opacity="0"/>
-    </radialGradient>
-  </defs>'''
+TEAL, MINT, NAVY_TOP, NAVY_BOTTOM = "#22D3EE", "#5EEAD4", "#14213D", "#070B17"
+C = 64  # the disruption, in the middle
+# radius, ring opacity, where the path crosses the ring (degrees)
+RINGS = [(22, 0.9, 70), (38, 0.6, 22), (54, 0.35, 52)]
 
 
-def web(cx, cy, rings, start_deg, sweep_deg, spokes):
-    """Spokes from (cx, cy) and sagging rings between them."""
-    def pt(r, k):
-        a = math.radians(start_deg + sweep_deg / spokes * k)
-        return cx + r * math.cos(a), cy + r * math.sin(a)
-
-    out = [f'<line x1="{cx}" y1="{cy}" x2="{pt(rings[-1], k)[0]:.1f}" y2="{pt(rings[-1], k)[1]:.1f}"/>'
-           for k in range(spokes)]
-    for r in rings:
-        d = ""
-        for k in range(spokes):
-            (x0, y0), (x1, y1) = pt(r, k), pt(r, k + 1)
-            mx, my = pt(r * SAG, k + 0.5)
-            qx, qy = 2 * mx - (x0 + x1) / 2, 2 * my - (y0 + y1) / 2
-            d += (f"M{x0:.1f} {y0:.1f} " if k == 0 else "") + f"Q{qx:.1f} {qy:.1f} {x1:.1f} {y1:.1f} "
-        out.append(f'<path d="{d}Z"/>')
-    return "".join(out), pt
+def on_ring(radius: float, degrees: float) -> tuple[float, float]:
+    a = math.radians(degrees)
+    return round(C + radius * math.cos(a), 1), round(C - radius * math.sin(a), 1)
 
 
-def icon() -> str:
-    lines, pt = web(64, 64, (16, 32, 48), -90, 360, 8)
-    x, y = pt(32, 1)  # the red node sits where a spoke crosses the middle ring
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Ripple">
+def svg() -> str:
+    rings = "".join(f'<circle cx="{C}" cy="{C}" r="{r}" stroke-opacity="{o}"/>' for r, o, _ in RINGS)
+    hops = [on_ring(r, d) for r, _, d in RINGS]
+    path = "M" + " L".join(f"{x} {y}" for x, y in [(C, C)] + hops)
+    dots = "".join(f'<circle cx="{x}" cy="{y}" r="{6.5 - i}"/>' for i, (x, y) in enumerate(hops))
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Ripple">
   <title>Ripple</title>
-  {DEFS}
-  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
-  <rect x="1" y="1" width="126" height="126" rx="27" fill="none"
-        stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="2"/>
-  <g stroke="url(#silver)" stroke-width="2.6" stroke-linecap="round" fill="none">{lines}</g>
-  <circle cx="{x:.1f}" cy="{y:.1f}" r="15" fill="url(#glow)"/>
-  <circle cx="{x:.1f}" cy="{y:.1f}" r="5.5" fill="{RED}"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{NAVY_TOP}"/><stop offset="1" stop-color="{NAVY_BOTTOM}"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="{TEAL}"/><stop offset="1" stop-color="{MINT}"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="url(#bg)"/>
+  <g fill="none" stroke="url(#wave)" stroke-width="3.5">{rings}</g>
+  <path d="{path}" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#FFFFFF">{dots}</g>
+  <circle cx="{C}" cy="{C}" r="10" fill="url(#wave)" stroke="{NAVY_BOTTOM}" stroke-width="2.5"/>
 </svg>
-'''
+"""
 
 
 if __name__ == "__main__":
-    (HERE / "logo.svg").write_text(icon())
-    print("wrote assets/logo.svg")
+    (HERE / "logo.svg").write_text(svg())
+    print("Wrote", HERE / "logo.svg")

@@ -9,6 +9,7 @@ import base64
 import json
 import os
 from datetime import UTC, datetime, timedelta
+from html import escape
 from pathlib import Path
 
 import pandas as pd
@@ -28,7 +29,54 @@ EXAMPLES = [
 COLORS = viz.COLORS
 
 ASSETS = Path(__file__).resolve().parent / "assets"
-st.set_page_config(page_title="Ripple", page_icon=str(ASSETS / "logo.png"), layout="wide")
+st.set_page_config(page_title="Ripple · supply chain disruption agent", page_icon=str(ASSETS / "logo.png"),
+                   layout="wide")
+
+# A few styles on top of the theme in .streamlit/config.toml.
+st.markdown("""<style>
+.block-container {padding-top: 3.6rem; max-width: 1280px}
+.rp-eyebrow {color: #5EEAD4; font-weight: 600; letter-spacing: .09em; text-transform: uppercase;
+             font-size: .78rem; margin-bottom: .35rem}
+.rp-title {font-size: 2.65rem; line-height: 1.08; font-weight: 800; letter-spacing: -.02em; margin: 0 0 .7rem;
+           background: linear-gradient(90deg, #FFFFFF 30%, #8BE9F8); -webkit-background-clip: text;
+           background-clip: text; color: transparent}
+.rp-lead {color: #A9B6CC; font-size: 1.08rem; max-width: 52rem; margin-bottom: 1.1rem}
+.rp-grid {display: grid; gap: 14px; margin: .4rem 0 1.4rem}
+.rp-card {background: #121A2C; border: 1px solid #1F2A44; border-radius: 16px; padding: 16px 18px}
+.rp-big {font-size: 2.1rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.1}
+.rp-big small {font-size: 1rem; font-weight: 600; color: #7C8BA5}
+.rp-label {color: #C9D4E5; font-weight: 600; margin-top: .25rem}
+.rp-muted {color: #8494AE; font-size: .88rem; margin-top: .2rem}
+.rp-accent {color: #22D3EE}
+.rp-bad {color: #FB7185}
+.rp-good {color: #34D399}
+.rp-step {display: flex; gap: 12px; align-items: flex-start}
+.rp-num {flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+         background: rgba(34, 211, 238, .14); color: #22D3EE; font-weight: 700; font-size: .9rem}
+.rp-verdict {background: linear-gradient(135deg, rgba(34, 211, 238, .13), #121A2C 55%);
+             border: 1px solid rgba(34, 211, 238, .35); border-radius: 18px; padding: 20px 22px; margin: .3rem 0 1rem}
+.rp-verdict h3 {margin: 0 0 .8rem; font-size: 1.35rem}
+.rp-row {display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: .9rem; padding-top: .9rem;
+         border-top: 1px solid #22304D; color: #C9D4E5}
+.rp-pill {display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600}
+.rp-high {background: rgba(251, 113, 133, .15); color: #FB7185}
+.rp-medium {background: rgba(251, 191, 36, .15); color: #FBBF24}
+@media (max-width: 760px) {.rp-title {font-size: 2rem} .rp-grid {grid-template-columns: 1fr !important}}
+</style>""", unsafe_allow_html=True)
+
+
+def html(markup: str) -> None:
+    st.markdown(markup, unsafe_allow_html=True)
+
+
+def card(big: str, label: str, note: str = "") -> str:
+    return (f'<div class="rp-card"><div class="rp-big">{big}</div><div class="rp-label">{label}</div>'
+            + (f'<div class="rp-muted">{note}</div>' if note else "") + "</div>")
+
+
+def grid(cards: list[str], columns: int) -> None:
+    html(f'<div class="rp-grid" style="grid-template-columns: repeat({columns}, minmax(0, 1fr))">'
+         + "".join(cards) + "</div>")
 
 # On Streamlit Community Cloud the API keys come from the app's Secrets
 # instead of a .env file. Without any key the app runs in rule-based mode.
@@ -120,11 +168,11 @@ def show_result(result: dict, key: str) -> None:
     st.subheader(f"{d['name']} {what} for {d['days']} days")
 
     cols = st.columns(5)
-    cols[0].metric("Shipments late", s["shipments"])
-    cols[1].metric("Customers affected", s["customers"])
-    cols[2].metric("Beyond tolerance", s["sla_breaches"])
-    cols[3].metric("Cargo value", agent.money(s["value_at_risk_usd"]))
-    cols[4].metric("Customers via suppliers", s["downstream_customers"])
+    cols[0].metric("Shipments late", s["shipments"], border=True)
+    cols[1].metric("Customers affected", s["customers"], border=True)
+    cols[2].metric("Beyond tolerance", s["sla_breaches"], border=True)
+    cols[3].metric("Cargo value", agent.money(s["value_at_risk_usd"]), border=True)
+    cols[4].metric("Customers via suppliers", s["downstream_customers"], border=True)
 
     impacted = result["impacted"]
     if not impacted:
@@ -234,12 +282,12 @@ def show_mitigation(result: dict, key: str) -> None:
     b, a = sim["before"], sim["after"]
     cols = st.columns(4)
     cols[0].metric("Late after diversion", a["shipments_late"], a["shipments_late"] - b["shipments_late"],
-                   delta_color="inverse")
+                   delta_color="inverse", border=True)
     cols[1].metric("Delay days after", a["delay_days"], a["delay_days"] - b["delay_days"],
-                   delta_color="inverse")
+                   delta_color="inverse", border=True)
     cols[2].metric("Beyond tolerance after", a["sla_breaches"], a["sla_breaches"] - b["sla_breaches"],
-                   delta_color="inverse")
-    cols[3].metric("Value protected", agent.money(sim["value_protected_usd"]))
+                   delta_color="inverse", border=True)
+    cols[3].metric("Value protected", agent.money(sim["value_protected_usd"]), border=True)
     st.markdown(f"**{sim['shipments_rescued']} shipments rescued** by diverting to "
                 f"{sim['fallback']['name']}; extra distance: {sim['extra_sea_km']:,} km at sea and "
                 f"{sim['extra_road_km']:,} km by road or feeder. Before: {b['shipments_late']} late, "
@@ -266,11 +314,10 @@ def show_mitigation(result: dict, key: str) -> None:
 with st.sidebar:
     # The logo (assets/make_logo.py) inlined as SVG so it stays sharp.
     logo = base64.b64encode((ASSETS / "logo.svg").read_bytes()).decode()
-    st.markdown(f'<div style="display:flex;align-items:center;gap:12px;margin-bottom:.4rem">'
-                f'<img src="data:image/svg+xml;base64,{logo}" width="56" alt="">'
-                f'<span style="font-size:2rem;font-weight:700">Ripple</span></div>',
-                unsafe_allow_html=True)
-    st.caption("Supply chain disruption agent on a Relate graph")
+    html(f'<div style="display:flex;align-items:center;gap:12px;margin:.2rem 0 .3rem">'
+         f'<img src="data:image/svg+xml;base64,{logo}" width="46" alt="">'
+         f'<div><div style="font-size:1.6rem;font-weight:800;letter-spacing:-.02em;line-height:1">Ripple</div>'
+         f'<div class="rp-muted" style="margin:0">Disruption agent on a Relate graph</div></div></div>')
     if llm.available():
         use_llm = st.toggle(f"Use LLM ({llm.provider()})", value=True)
     else:
@@ -290,11 +337,8 @@ with st.sidebar:
             what = f"Port of {target} closed" if kind == "Port closure" else f"{target} out of service"
             st.session_state["question"] = f"{what} for {days} days from {start.isoformat()}"
             st.session_state["history"] = []  # a new scenario, not a follow-up
-    st.markdown("**Try an example**")
-    for example in EXAMPLES:
-        if st.button(example, width="stretch"):
-            st.session_state["question"] = example
-            st.session_state["history"] = []
+    if st.session_state.get("question"):
+        st.button("← Home: risk radar and examples", on_click=lambda: ask(""), width="stretch")
     stats = graph_stats()
     st.markdown("**The graph**")
     st.caption(" · ".join(f"{n} {label}s" for label, n in stats["nodes"].items())
@@ -303,13 +347,21 @@ with st.sidebar:
                  "The scenario's \"today\" is 1 December 2026.")
 
 # ---------------------------------------------------------------------- main
-st.header("What happens if...?")
 # A link like  /?q=Port+of+Rotterdam+closed  opens the page with an answer.
 if "question" not in st.session_state and st.query_params.get("q"):
     st.session_state["question"] = st.query_params["q"]
+if st.session_state.get("question"):
+    html('<div class="rp-eyebrow">What happens if...?</div>')
+else:
+    html('<div class="rp-eyebrow">Supply chain disruption agent · built on Relate</div>'
+         '<div class="rp-title">A port closes. Who is hit,<br>three hops later?</div>'
+         '<div class="rp-lead">Describe a disruption in plain English. Ripple walks a Relate graph from the '
+         'port to the vessels due there, the cargo on board, the customers waiting for it and the companies '
+         'they supply, and shows the exact path behind every answer.</div>')
 question = st.text_input("Describe a disruption in plain English, then ask follow-ups "
                          "(\"and if it lasts a week?\", \"what about Antwerp instead?\")", key="question",
-                         placeholder="Port of Rotterdam closed for 3 days")
+                         placeholder="Describe a disruption, e.g. Port of Rotterdam closed for 3 days",
+                         label_visibility="visible" if st.session_state.get("question") else "collapsed")
 
 @st.cache_data
 def radar_rows() -> list:
@@ -364,20 +416,88 @@ def show_radar() -> None:
     for i, r in enumerate(rows[:6]):
         with st.container(border=True):
             left, middle, right = st.columns([5, 4, 1.4])
+            pill = f'<span class="rp-pill rp-{r["severity"]}">{r["severity"]}</span>'
+            meta = f"{r['date']:%d %b}"
             if "headlines" in r:
-                more = f" · {r['articles']} articles" if r["articles"] > 1 else ""
-                source = f"[{r['source']}]({r['headlines'][0]['url']})" if r["headlines"][0]["url"] else r["source"]
-                left.markdown(f"**{', '.join(r['port_names'])}** · {r['severity']} · {r['date']:%d %b} · "
-                              f"{source}{more}  \n{r['text']}")
-            else:
-                left.markdown(f"**{', '.join(r['port_names'])}** · {r['severity']} · {r['date']:%d %b}  \n"
-                              f"{r['text']}")
+                url = r["headlines"][0]["url"]
+                source = (f'<a href="{escape(url)}" target="_blank">{escape(r["source"])}</a>' if url
+                          else escape(r["source"]))
+                meta += f" · {source}" + (f" · {r['articles']} articles" if r["articles"] > 1 else "")
+            left.markdown(f"**{escape(', '.join(r['port_names']))}** &nbsp;{pill}&nbsp; "
+                          f'<span class="rp-muted">{meta}</span>  \n{escape(r["text"])}', unsafe_allow_html=True)
             middle.markdown(f"**{agent.money(r['value_beyond_tolerance_usd'])}** beyond tolerance  \n"
                             f"{r['shipments']} shipments late, {r['customers']} customers, "
                             f"{r['ripple_customers']} via suppliers, "
                             + (f"simulated for {r['days_total']} day(s)" if "headlines" in r
                                else f"{r['days_remaining']} day(s) left"))
             right.button("Analyze", key=f"radar-{mode}-{i}", on_click=ask, args=(r["question"],), width="stretch")
+
+
+@st.cache_data(show_spinner=False)
+def proof() -> dict:
+    """The landing page's evidence, computed live on the graph: one closure,
+    what the graph finds, and what plain RAG finds on the same data."""
+    conn = db.connect()
+    try:
+        question = "Port of Rotterdam closed for 3 days"
+        result = queries.port_closure(conn, "NLRTM", 3)
+        cmp = plain_rag.compare(conn, question, [result], 10)
+        hops = max(len(r["path_rels"]) for r in result["impacted"])
+        return {"graph": cmp["graph"], "rag": cmp["plain_rag"], "hops": hops,
+                "supplier_hops": max((r["supplier_hops"] for r in result["downstream"]), default=0)}
+    finally:
+        conn.close()
+
+
+def show_pitch() -> None:
+    p = proof()
+    g, r = p["graph"], p["rag"]
+    grid([
+        card(f'{g["shipments"]} <small>vs {r["shipments_found"]}</small>', "delayed shipments found",
+             "Rotterdam closed 3 days: Ripple walks the graph, plain RAG retrieves the top 10 documents "
+             "of the same data."),
+        card(f'{p["hops"]} hops', "from the port to each customer",
+             "Port, route, vessel, shipment, customer: every answer comes with that path."),
+        card(f'{g["second_order_customers"]} <small>vs {r["second_order_found"]}</small>',
+             "customers hit through their suppliers",
+             f"A variable-length SUPPLIES path follows the ripple up to {p['supplier_hops']} tiers here."),
+    ], 3)
+    steps = [
+        ("Understand", "Names, sea areas and radii, or hybrid search over the news when no port is named."),
+        ("Walk the graph", "Multi-hop Cypher on the embedded Relate store, arrival dates computed per vessel."),
+        ("Explain", "Ranked impact with the path behind each line, written by an LLM or by rules."),
+        ("Act", "Simulate a diversion, keep the plan: it is written back to the graph."),
+    ]
+    grid([f'<div class="rp-card rp-step"><div class="rp-num">{i}</div><div><b>{t}</b>'
+          f'<div class="rp-muted">{d}</div></div></div>' for i, (t, d) in enumerate(steps, 1)], 4)
+
+
+def show_verdict(out: dict) -> None:
+    """The answer in one card, before the details."""
+    results = out["results"]
+    c = queries.combine(results)
+    names = " and ".join(r["disruption"]["name"] for r in results)
+    d = results[0]["disruption"]
+    what = "closed" if d["kind"] == "port_closure" else "out of service"
+    cmp = run_comparison(out["question"], results, 10)
+    best = results[0].get("best_diversion") if len(results) == 1 else None
+    move = ""
+    if best and best["shipments_rescued"]:
+        move = (f'<span>Best move: <b class="rp-good">divert to {escape(best["fallback"]["name"])}</b>, '
+                f'{best["shipments_rescued"]} shipments rescued, '
+                f'<b>{agent.money(best["value_protected_usd"])}</b> protected</span>')
+    html(f'''<div class="rp-verdict"><h3>{escape(names)} {what} for {d["days"]} days</h3>
+      <div class="rp-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0">
+        <div><div class="rp-big">{c["shipments"]}</div><div class="rp-muted">shipments late</div></div>
+        <div><div class="rp-big">{c["customers"]}</div><div class="rp-muted">customers affected</div></div>
+        <div><div class="rp-big rp-bad">{agent.money(c["value_beyond_tolerance_usd"])}</div>
+             <div class="rp-muted">of cargo later than customers tolerate</div></div>
+        <div><div class="rp-big">{c["downstream_customers"]}</div><div class="rp-muted">more customers hit
+             through suppliers</div></div>
+      </div>
+      <div class="rp-row">{move}<span>Plain RAG on the same data finds
+        <b>{cmp["plain_rag"]["shipments_found"]}</b> of the {c["shipments"]} late shipments</span></div>
+    </div>''')
 
 
 def show_decision_log() -> None:
@@ -425,7 +545,12 @@ if question:
         left.caption(f"↪ Follow-up of “{out['plan']['follow_up_of']}”: same scenario, with what you changed.")
         right.button("New scenario", on_click=new_scenario, width="stretch")
 
-    st.markdown(out["explanation"])
+    if out["results"] and any(r["impacted"] for r in out["results"]):
+        show_verdict(out)
+    with st.container(border=True):
+        html(f'<div class="rp-eyebrow">Ripple\'s analysis · '
+             f'{"written by the LLM from the graph paths" if out["explained_by"] == "llm" else "rule-based"}</div>')
+        st.markdown(out["explanation"])
     if out.get("data_answer") and len(out["data_answer"]["rows"]) > 10:
         with st.expander(f"All {len(out['data_answer']['rows'])} rows"):
             st.dataframe(pd.DataFrame(out["data_answer"]["rows"]), hide_index=True, width="stretch")
@@ -449,11 +574,11 @@ if question:
                 c = queries.combine(out["results"])
                 st.subheader(f"Combined: {len(out['results'])} disruptions at once")
                 cols = st.columns(5)
-                cols[0].metric("Unique shipments late", c["shipments"])
-                cols[1].metric("Unique customers", c["customers"])
-                cols[2].metric("Beyond tolerance (all)", c["sla_breaches"])
-                cols[3].metric("Cargo value (all)", agent.money(c["value_at_risk_usd"]))
-                cols[4].metric("Hit twice, counted once", c["double_counted"])
+                cols[0].metric("Unique shipments late", c["shipments"], border=True)
+                cols[1].metric("Unique customers", c["customers"], border=True)
+                cols[2].metric("Beyond tolerance (all)", c["sla_breaches"], border=True)
+                cols[3].metric("Cargo value (all)", agent.money(c["value_at_risk_usd"]), border=True)
+                cols[4].metric("Hit twice, counted once", c["double_counted"], border=True)
                 st.divider()
             for index, result in enumerate(out["results"]):
                 if index:
@@ -462,8 +587,8 @@ if question:
         with tab_compare:
             show_comparison(question, out["results"])
 else:
-    st.markdown("Ask about a port, a vessel, a country, or an incident from the news. "
-                "Ripple finds every shipment and customer affected, several hops away, "
-                "and shows the path it followed.")
+    st.pills("Try", EXAMPLES, key="example", on_change=lambda: ask(st.session_state["example"] or ""),
+             label_visibility="collapsed")
+    show_pitch()
     show_radar()
     show_decision_log()

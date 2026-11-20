@@ -1,0 +1,20 @@
+# Ripple's look: the colours of the logo (assets/make_logo.py).
+[theme]
+base = "dark"
+primaryColor = "#22D3EE"
+backgroundColor = "#0A0F1C"
+secondaryBackgroundColor = "#121A2C"
+textColor = "#E6EDF7"
+linkColor = "#5EEAD4"
+borderColor = "#1F2A44"
+baseRadius = "0.75rem"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+showWidgetBorder = true
+
+[theme.sidebar]
+backgroundColor = "#0D1424"
+secondaryBackgroundColor = "#141E33"
+
+[browser]
+gatherUsageStats = false

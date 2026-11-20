@@ -10,3 +10,6 @@ __pycache__/
 
 # Writable copy of the graph for plans and the agent memory (ripple/workspace.py)
 .ripple/
+
+# Streamlit secrets (API keys); the theme in .streamlit/config.toml is committed
+.streamlit/secrets.toml

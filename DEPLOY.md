@@ -25,8 +25,12 @@ agent runs in its deterministic rule-based mode.
      variables at start-up (see the top of `app.py`).
 6. Click **Save**, then **Deploy**. The first build installs
    `requirements.txt` and takes a few minutes.
-7. Open the app and click **Port of Rotterdam closed for 3 days** in the
-   sidebar. You should see 29 delayed shipments.
+7. Check the app:
+   - Home page: click **Port of Rotterdam closed for 3 days** under the question box. You should
+     see 29 late shipments, then the **Impact map** tab with arcs around the world.
+   - Switch the radar to **Live news**: today's real events appear (or a short "skipped" note if
+     a news source does not answer from the cloud; the rest of the app is unaffected).
+   - In the sidebar, open **Network weak points** (Rotterdam first) and **Inside the graph**.
 8. Copy the URL into the README (`Live demo` line at the top) and into the
    Devpost form.
 
@@ -40,6 +44,10 @@ agent runs in its deterministic rule-based mode.
   sleep. Open it yourself shortly before judging and before recording the
   video so it is awake.
 - **Updates:** every push to `main` redeploys the app automatically.
+- **Saved plans and memory** live in a writable copy of the graph on the server; they are reset
+  whenever the app restarts or redeploys. The committed store itself is never modified.
+- **Maps** load their background from CARTO (free, no key) and **Live news** calls GDACS and
+  Google News: both need the server's internet access, which Community Cloud provides.
 
 ## If something goes wrong
 

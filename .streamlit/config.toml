@@ -1,21 +1,22 @@
-# Ripple's look: the colours of the logo (assets/make_logo.py), geometric headings.
+# Ripple's look: black and white, one green for what to do about it.
 [theme]
 base = "dark"
-primaryColor = "#60A5FA"
-backgroundColor = "#0A0F1C"
-secondaryBackgroundColor = "#121A2C"
-textColor = "#E6EDF7"
-linkColor = "#A5B4FC"
-borderColor = "#1F2A44"
-baseRadius = "0.75rem"
-font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-headingFont = "'Space Grotesk':https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap"
-codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+primaryColor = "#3BD671"
+backgroundColor = "#000000"
+secondaryBackgroundColor = "#0E0E0E"
+textColor = "#F2F2F2"
+linkColor = "#F2F2F2"
+borderColor = "#262626"
+baseRadius = "0.375rem"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
 showWidgetBorder = true
 
 [theme.sidebar]
-backgroundColor = "#0D1424"
-secondaryBackgroundColor = "#141E33"
+backgroundColor = "#000000"
+secondaryBackgroundColor = "#0E0E0E"
+borderColor = "#1C1C1C"
 
 [browser]
 gatherUsageStats = false

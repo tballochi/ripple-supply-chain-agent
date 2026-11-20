@@ -36,49 +36,51 @@ st.set_page_config(page_title="Ripple · supply chain disruption agent", page_ic
 
 # A few styles on top of the theme in .streamlit/config.toml.
 st.markdown("""<style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap');
-.block-container {padding-top: 3.6rem; max-width: 1280px}
-.rp-eyebrow {color: #A5B4FC; font-weight: 600; letter-spacing: .09em; text-transform: uppercase;
-             font-size: .78rem; margin-bottom: .35rem}
-.rp-hero {display: flex; align-items: center; gap: 32px; margin-bottom: .4rem}
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+.block-container {padding-top: 3.6rem; max-width: 1240px}
+.rp-mono, .rp-eyebrow, .rp-big, .rp-num, .rp-pill {font-family: "JetBrains Mono", ui-monospace, monospace}
+.rp-eyebrow {color: #8A8A8A; font-weight: 500; letter-spacing: .06em; text-transform: uppercase;
+             font-size: .74rem; margin-bottom: .5rem}
+.rp-hero {display: flex; align-items: center; gap: 40px; margin-bottom: .6rem;
+          padding-bottom: 1.4rem; border-bottom: 1px solid #1C1C1C}
 .rp-hero > div:first-child {flex: 1; min-width: 0}
-.rp-hero svg {flex: none; width: 210px; height: 210px}
-.rp-title, .rp-big, .rp-verdict h3, .rp-wordmark {font-family: "Space Grotesk", Inter, sans-serif}
-.rp-wordmark {font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; line-height: 1}
-.rp-title {font-size: 2.65rem; line-height: 1.08; font-weight: 800; letter-spacing: -.02em; margin: 0 0 .7rem;
-           background: linear-gradient(90deg, #FFFFFF 30%, #A5B4FC); -webkit-background-clip: text;
-           background-clip: text; color: transparent}
-.rp-lead {color: #A9B6CC; font-size: 1.08rem; max-width: 52rem; margin-bottom: 1.1rem}
-.rp-grid {display: grid; gap: 14px; margin: .4rem 0 1.4rem}
-.rp-card {background: #121A2C; border: 1px solid #1F2A44; border-radius: 16px; padding: 16px 18px}
-.rp-big {font-size: 2.1rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.1}
-.rp-big small {font-size: 1rem; font-weight: 600; color: #7C8BA5}
-.rp-label {color: #C9D4E5; font-weight: 600; margin-top: .25rem}
-.rp-muted {color: #8494AE; font-size: .88rem; margin-top: .2rem}
-.rp-accent {color: #60A5FA}
-.rp-bad {color: #FB7185}
-.rp-good {color: #34D399}
+.rp-hero svg {flex: none; width: 170px; height: 170px}
+.rp-wordmark {font-size: 1.45rem; font-weight: 700; letter-spacing: -.03em; line-height: 1; color: #FFFFFF}
+.rp-title {font-size: 2.6rem; line-height: 1.05; font-weight: 700; letter-spacing: -.035em; margin: 0 0 .8rem;
+           color: #FFFFFF; text-wrap: balance}
+.rp-title em {font-style: normal; color: #3BD671}
+.rp-lead {color: #A3A3A3; font-size: 1.05rem; max-width: 46rem; margin-bottom: .4rem}
+.rp-grid {display: grid; gap: 1px; margin: .6rem 0 1.6rem; background: #262626; border: 1px solid #262626;
+          border-radius: 6px; overflow: hidden}
+.rp-card {background: #000000; padding: 18px 20px}
+.rp-big {font-size: 1.9rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; color: #FFFFFF}
+.rp-big small {font-size: .95rem; font-weight: 500; color: #6B6B6B}
+.rp-label {color: #E5E5E5; font-weight: 600; margin-top: .35rem}
+.rp-muted {color: #8A8A8A; font-size: .87rem; margin-top: .2rem}
+.rp-accent, .rp-good {color: #3BD671}
+.rp-bad {color: #FFFFFF; text-decoration: underline; text-decoration-color: #555; text-underline-offset: 4px}
 .rp-step {display: flex; gap: 12px; align-items: flex-start}
-.rp-num {flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
-         background: rgba(96, 165, 250, .14); color: #60A5FA; font-weight: 700; font-size: .9rem}
-.rp-verdict {background: linear-gradient(135deg, rgba(96, 165, 250, .13), #121A2C 55%);
-             border: 1px solid rgba(96, 165, 250, .35); border-radius: 18px; padding: 20px 22px; margin: .3rem 0 1rem}
-.rp-verdict h3 {margin: 0 0 .8rem; font-size: 1.35rem}
-.rp-row {display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: .9rem; padding-top: .9rem;
-         border-top: 1px solid #22304D; color: #C9D4E5}
-.rp-pill {display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600}
-.rp-high {background: rgba(251, 113, 133, .15); color: #FB7185}
-.rp-medium {background: rgba(251, 191, 36, .15); color: #FBBF24}
+.rp-num {flex: none; color: #3BD671; font-weight: 600; font-size: .85rem; padding-top: 2px}
+.rp-verdict {background: #000000; border: 1px solid #333333; border-radius: 6px; padding: 22px 24px;
+             margin: .3rem 0 1rem}
+.rp-verdict h3 {margin: 0 0 1rem; font-size: 1.3rem; font-weight: 700; letter-spacing: -.02em}
+.rp-verdict .rp-grid {border: 0; margin: 0; background: transparent; gap: 14px}
+.rp-row {display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 1rem; padding-top: 1rem;
+         border-top: 1px solid #262626; color: #D4D4D4}
+.rp-pill {display: inline-block; padding: 1px 8px; border-radius: 3px; font-size: .72rem; font-weight: 600;
+          text-transform: uppercase; letter-spacing: .04em}
+.rp-high {background: #FFFFFF; color: #000000}
+.rp-medium {border: 1px solid #555555; color: #BDBDBD}
 @media (max-width: 760px) {.rp-hero svg {display: none} .rp-title {font-size: 2rem}
                            .rp-grid {grid-template-columns: 1fr !important}}
 </style>""", unsafe_allow_html=True)
 
 
 # The logo's three circles, without the tile (same geometry as assets/make_logo.py).
-HERO_ART = ('<svg viewBox="16 0 112 112" aria-hidden="true">'
-            '<circle cx="72.2" cy="55.8" r="54" fill="#1E40AF" fill-opacity=".55"/>'
-            '<circle cx="59.5" cy="68.5" r="36" fill="#2563EB" fill-opacity=".85"/>'
-            '<circle cx="46.7" cy="81.3" r="18" fill="#FFFFFF"/></svg>')
+HERO_ART = ('<svg viewBox="14 6 110 110" aria-hidden="true">'
+            '<circle cx="65.4" cy="62.6" r="47" fill="none" stroke="#FFFFFF" stroke-width="3"/>'
+            '<circle cx="53.3" cy="74.7" r="30" fill="none" stroke="#6B6B6B" stroke-width="3"/>'
+            '<circle cx="41.3" cy="86.7" r="16" fill="#3BD671"/></svg>')
 
 
 def html(markup: str) -> None:
@@ -178,9 +180,9 @@ def graph_stats() -> dict:
     return {"nodes": nodes, "relationships": rels}
 
 
-# Map colours (RGBA): the logo's blues, plus red for the disruption and green for the way out.
-RED, AMBER, GREEN = [251, 113, 133], [251, 191, 36], [52, 211, 153]
-BLUE, VIOLET, GREY = [96, 165, 250], [167, 139, 250], [148, 163, 184]
+# Map colours (RGB): white for what is hit hardest, greys for the rest, green for the way out.
+RED, AMBER, GREEN = [245, 245, 245], [150, 150, 150], [59, 214, 113]
+BLUE, VIOLET, GREY = [95, 95, 95], [205, 205, 205], [64, 64, 64]
 
 
 def deck(layers: list, lon: float = 20.0, lat: float = 25.0, zoom: float = 0.9) -> pdk.Deck:
@@ -188,7 +190,7 @@ def deck(layers: list, lon: float = 20.0, lat: float = 25.0, zoom: float = 0.9) 
     view = pdk.View(type="MapView", controller={"scrollZoom": False, "dragPan": True, "doubleClickZoom": True})
     return pdk.Deck(layers=layers, views=[view], map_provider="carto", map_style=pdk.map_styles.CARTO_DARK,
                     initial_view_state=pdk.ViewState(longitude=lon, latitude=lat, zoom=zoom, pitch=0),
-                    tooltip={"html": "{tip}", "style": {"backgroundColor": "#121A2C", "color": "#E6EDF7",
+                    tooltip={"html": "{tip}", "style": {"backgroundColor": "#0E0E0E", "color": "#F2F2F2",
                                                         "fontSize": "13px", "borderRadius": "8px"}})
 
 
@@ -249,10 +251,10 @@ def show_impact_map(result: dict) -> None:
     html('<div style="margin:.2rem 0 .5rem">' + " · ".join(headline) + "</div>")
     st.pydeck_chart(deck(layers, lon=35.0, lat=22.0, zoom=0.95), height=520)
     html('<div class="rp-muted" style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:.3rem">'
-         '<span><span class="rp-bad">━</span> late shipment, beyond the customer\'s tolerance</span>'
-         '<span style="color:#FBBF24">━</span><span style="margin-left:-12px">&nbsp;late, still tolerated</span>'
-         '<span><span style="color:#60A5FA">━</span> on to the customer\'s country</span>'
-         '<span><span style="color:#A78BFA">━</span> companies hit through their suppliers</span>'
+         '<span><span style="color:#F5F5F5">━</span> late shipment, beyond the customer\'s tolerance</span>'
+         '<span><span style="color:#969696">━</span> late, still tolerated</span>'
+         '<span><span style="color:#5F5F5F">━</span> on to the customer\'s country</span>'
+         '<span><span style="color:#CDCDCD">┄</span> companies hit through their suppliers</span>'
          '<span><span class="rp-good">●</span> best fallback port</span>'
          '<span>Ports and routes are real places; customers sit at the centre of their country.</span></div>')
 
@@ -328,7 +330,7 @@ def show_result(result: dict, key: str) -> None:
             components.html(viz.path_to_vis_html(paths), height=560)
         else:
             st.graphviz_chart(viz.path_to_dot(paths), width="stretch")
-        legend = " &nbsp; ".join(f'<span style="color:{color}">&#9632;</span> {label}'
+        legend = " &nbsp; ".join(f'<span style="color:{viz.BORDER.get(label, color)}">&#9632;</span> {label}'
                                  for label, color in COLORS.items())
         st.markdown(f"One disruption on the left, every customer it reaches on the right. "
                     f"&nbsp; {legend}", unsafe_allow_html=True)
@@ -578,7 +580,7 @@ def show_pitch() -> None:
         ("Explain", "Ranked impact with the path behind each line, written by an LLM or by rules."),
         ("Act", "Simulate a diversion, keep the plan: it is written back to the graph."),
     ]
-    grid([f'<div class="rp-card rp-step"><div class="rp-num">{i}</div><div><b>{t}</b>'
+    grid([f'<div class="rp-card rp-step"><div class="rp-num">{i:02d}</div><div><b>{t}</b>'
           f'<div class="rp-muted">{d}</div></div></div>' for i, (t, d) in enumerate(steps, 1)], 4)
 
 
@@ -705,9 +707,9 @@ def weak_points_page() -> None:
                       get_radius="radius", get_fill_color="color", stroked=True, get_line_color=[10, 15, 28, 255],
                       line_width_min_pixels=1, pickable=True)
     st.pydeck_chart(deck([layer], lon=40.0, lat=22.0, zoom=0.95), height=420)
-    html('<div class="rp-muted"><span class="rp-bad">●</span> most exposed &nbsp; '
-         '<span style="color:#FBBF24">●</span> exposed &nbsp; <span style="color:#60A5FA">●</span> some late '
-         'cargo &nbsp; <span style="color:#94A3B8">●</span> nothing due in that window. '
+    html('<div class="rp-muted"><span style="color:#F5F5F5">●</span> most exposed &nbsp; '
+         '<span style="color:#969696">●</span> exposed &nbsp; <span style="color:#5F5F5F">●</span> some late '
+         'cargo &nbsp; <span style="color:#404040">●</span> nothing due in that window. '
          'Size: cargo later than customers tolerate.</div>')
     st.dataframe(pd.DataFrame([{
         "Rank": i, "Port": p["name"], "Beyond tolerance": p["value_beyond_tolerance_usd"],
@@ -753,7 +755,8 @@ def graph_page() -> None:
          '(<code>CALL db.schema.nodeTypeProperties()</code>, one count over every relationship, '
          '<code>SHOW INDEXES</code>). Then try your own Cypher; anything that would write is refused.</div>')
     model = graph_model()
-    grid([card(f'{item["count"]:,}', escape(item["label"]) + "s") for item in model["labels"]], 4)
+    grid([card(f'{item["count"]:,}', escape(item["label"]) + "s") for item in model["labels"]],
+         len(model["labels"]))
     st.graphviz_chart(explore.schema_dot(model), width="stretch")
     left, right = st.columns(2)
     with left:
@@ -791,7 +794,7 @@ def ask_page() -> None:
     else:
         html('<div class="rp-hero"><div>'
              '<div class="rp-eyebrow">Supply chain disruption agent · built on Relate</div>'
-             '<div class="rp-title">A port closes. Who is hit,<br>three hops later?</div>'
+             '<div class="rp-title">A port closes.<br>Who is hit, <em>three hops later?</em></div>'
              '<div class="rp-lead">Describe a disruption in plain English. Ripple walks a Relate graph from the '
              'port to the vessels due there, the cargo on board, the customers waiting for it and the companies '
              'they supply, and shows the exact path behind every answer.</div></div>' + HERO_ART + '</div>')

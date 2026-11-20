@@ -13,7 +13,7 @@ the same check as the LLM-written queries (ripple/lookup.py).
 import time
 
 from . import lookup
-from .viz import COLORS
+from .viz import BORDER, COLORS, TEXT
 
 NODE_PROPERTIES = "CALL db.schema.nodeTypeProperties()"
 NODE_COUNTS = "MATCH (n) RETURN labels(n)[0] AS label, count(*) AS n ORDER BY label"
@@ -70,13 +70,15 @@ def schema_dot(model: dict) -> str:
     """The data model as a Graphviz drawing: one box per label, one arrow per relationship type."""
     lines = ['digraph schema {', 'rankdir=LR; bgcolor="transparent";',
              'node [shape=box, style="rounded,filled", fontname="Helvetica", fontcolor="white", '
-             'color="#1F2A44", penwidth=1.5];',
-             'edge [fontname="Helvetica", fontsize=10, color="#64748B", fontcolor="#94A3B8"];']
+             'color="#4A4A4A", penwidth=0.8];',
+             'edge [fontname="Helvetica", fontsize=10, color="#5C5C5C", fontcolor="#8A8A8A"];']
     colours = {"Port": COLORS.get("Port"), "Route": COLORS.get("Route"), "Vessel": COLORS.get("Vessel"),
                "Shipment": COLORS.get("Shipment"), "Customer": COLORS.get("Customer")}
     for item in model["labels"]:
-        fill = colours.get(item["label"]) or "#334155"
-        lines.append(f'"{item["label"]}" [label="{item["label"]}\\n{item["count"]}", fillcolor="{fill}"];')
+        fill = colours.get(item["label"]) or "#1A1A1A"
+        text = TEXT.get(item["label"], "#FFFFFF")
+        lines.append(f'"{item["label"]}" [label="{item["label"]}\\n{item["count"]}", fillcolor="{fill}", '
+                     f'fontcolor="{text}", color="{BORDER.get(item["label"], "#4A4A4A")}"];')
     for p in model["patterns"]:
         lines.append(f'"{p["source"]}" -> "{p["target"]}" [label="{p["rel"]} ({p["n"]})"];')
     return "\n".join(lines + ["}"])

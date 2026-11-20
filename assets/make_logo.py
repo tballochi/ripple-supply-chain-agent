@@ -1,8 +1,8 @@
 """Draw the Ripple logo: python assets/make_logo.py  (writes logo.svg)
 
 Three circles touching at one point, each larger than the last: a ripple
-drawn with a compass. The white circle is the disruption, the blue ones are
-what it reaches, hop after hop. logo.png (the browser tab icon) is rendered
+drawn with a compass, in black and white with one green disc, the point
+where the disruption starts. logo.png (the browser tab icon) is rendered
 from the SVG with headless Chrome.
 """
 
@@ -10,17 +10,21 @@ import math
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-TOUCH = (34, 94)  # the point all three circles share, bottom left
-CIRCLES = [(54, "#1E40AF"), (36, "#2563EB"), (18, "#FFFFFF")]  # radius, colour, largest first
-BACKGROUND = ("#0F1B3D", "#060A16")
+TOUCH = (30, 98)  # the point all three circles share, bottom left
+# radius, colour, filled or drawn as a ring, largest first
+CIRCLES = [(50, "#FFFFFF", False), (33, "#8A8A8A", False), (16, "#3BD671", True)]
+RING = 6
+BACKGROUND = ("#000000", "#000000")
 
 
 def svg() -> str:
     # Each centre sits on the diagonal through TOUCH, one radius away from it,
     # so every circle is tangent to the others at that point.
     step = 1 / math.sqrt(2)
-    circles = "".join(f'<circle cx="{TOUCH[0] + r * step:.1f}" cy="{TOUCH[1] - r * step:.1f}" r="{r}" fill="{c}"/>'
-                      for r, c in CIRCLES)
+    circles = "".join(
+        f'<circle cx="{TOUCH[0] + r * step:.1f}" cy="{TOUCH[1] - r * step:.1f}" r="{r if filled else r - RING / 2}" '
+        + (f'fill="{c}"/>' if filled else f'fill="none" stroke="{c}" stroke-width="{RING}"/>')
+        for r, c, filled in CIRCLES)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Ripple">
   <title>Ripple</title>
   <defs>

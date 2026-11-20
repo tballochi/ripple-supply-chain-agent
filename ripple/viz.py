@@ -3,9 +3,13 @@ offline) and an interactive vis-network graph (loaded from a CDN)."""
 
 import json
 
-# One colour per node label, reused in every graph drawing.
-COLORS = {"Port": "#E4572E", "Route": "#F3A712", "Vessel": "#4C9F70",
-          "Shipment": "#3A7CA5", "Customer": "#7B5EA7"}
+# One shade per node label, reused in every graph drawing: the disrupted port
+# in white, the hops in greys, the customers it reaches in green.
+COLORS = {"Port": "#F5F5F5", "Route": "#5C5C5C", "Vessel": "#3D3D3D",
+          "Shipment": "#262626", "Customer": "#0B0B0B"}
+# Text and outline colours where they differ from the default (white, grey).
+TEXT = {"Port": "#000000", "Customer": "#3BD671"}
+BORDER = {"Customer": "#3BD671"}
 
 
 def path_to_dot(paths: list, horizontal: bool = True) -> str:
@@ -14,7 +18,7 @@ def path_to_dot(paths: list, horizontal: bool = True) -> str:
     from the disruption to the customers becomes visible."""
     lines = ["digraph {", f"rankdir={'LR' if horizontal else 'TB'};", 'bgcolor="transparent";',
              'node [style="filled,rounded", shape=box, fontname="Helvetica", fontsize=11, '
-             'fontcolor=white, color="#00000000"];',
+             'fontcolor=white, color="#4A4A4A", penwidth=0.6];',
              'edge [fontname="Helvetica", fontsize=9, color="#888888", fontcolor="#888888"];']
     seen_nodes, seen_edges = set(), set()
     for nodes, rels in paths:
@@ -22,7 +26,9 @@ def path_to_dot(paths: list, horizontal: bool = True) -> str:
             key = f"{node['label']}:{node['name']}"
             if key not in seen_nodes:
                 seen_nodes.add(key)
-                lines.append(f'"{key}" [label="{node["name"]}", fillcolor="{COLORS[node["label"]]}"];')
+                lines.append(f'"{key}" [label="{node["name"]}", fillcolor="{COLORS[node["label"]]}", '
+                             f'fontcolor="{TEXT.get(node["label"], "#FFFFFF")}", '
+                             f'color="{BORDER.get(node["label"], "#4A4A4A")}"];')
         for i, rel in enumerate(rels):
             a = f"{nodes[i]['label']}:{nodes[i]['name']}"
             b = f"{nodes[i + 1]['label']}:{nodes[i + 1]['name']}"
@@ -53,7 +59,9 @@ def path_to_vis_html(paths: list, height: int = 560) -> str:
             if key not in nodes:
                 nodes[key] = {"id": key, "label": node["name"], "level": level,
                               "title": f"{node['label']}: {node['name']}",
-                              "color": COLORS[node["label"]], "font": {"color": "#ffffff"}}
+                              "color": {"background": COLORS[node["label"]],
+                                        "border": BORDER.get(node["label"], "#4A4A4A")},
+                              "font": {"color": TEXT.get(node["label"], "#ffffff")}}
         for i, rel in enumerate(rels):
             a = f"{path_nodes[i]['label']}:{path_nodes[i]['name']}"
             b = f"{path_nodes[i + 1]['label']}:{path_nodes[i + 1]['name']}"
@@ -69,8 +77,9 @@ const nodes = new vis.DataSet(data.nodes), edges = new vis.DataSet(data.edges);
 const network = new vis.Network(document.getElementById("g"), {{nodes, edges}}, {{
   layout: {{hierarchical: {{direction: "LR", levelSeparation: 170, nodeSpacing: 40}}}},
   physics: false,
-  nodes: {{shape: "box", margin: 8, borderWidth: 0, shapeProperties: {{borderRadius: 6}}, font: {{size: 13}}}},
-  edges: {{color: {{color: "#888888", highlight: "#bbbbbb"}}, font: {{size: 10, color: "#999999", strokeWidth: 0}},
+  nodes: {{shape: "box", margin: 8, borderWidth: 1, shapeProperties: {{borderRadius: 3}},
+          font: {{size: 13, face: "Inter, Helvetica, sans-serif"}}}},
+  edges: {{color: {{color: "#5C5C5C", highlight: "#F5F5F5"}}, font: {{size: 10, color: "#8A8A8A", strokeWidth: 0}},
           smooth: {{type: "cubicBezierHorizontal"}}}},
   interaction: {{hover: true, tooltipDelay: 80}},
 }});

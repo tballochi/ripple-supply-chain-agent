@@ -71,6 +71,18 @@ def test_risk_radar_tool():
     assert len(out["alerts"]) == 3 and out["alerts"][0]["question"]
 
 
+def test_live_radar_tool_offline(monkeypatch):
+    from datetime import UTC, datetime
+
+    from ripple import live
+    alert = {"id": "news-mcp", "source": "Example Wire", "kind": "news", "severity": "medium",
+             "date": datetime.now(UTC).date(), "text": "Strike threat at Antwerp", "url": "",
+             "days": 2, "ports": ["BEANR"]}
+    monkeypatch.setattr(live, "fetch", lambda conn, day=None: ([alert], []))
+    out = mcp_server.live_radar()
+    assert out["events"][0]["question"] == "Port of Antwerp closed for 2 days" and out["skipped"] == []
+
+
 def test_memory_and_plan_tools():
     from ripple import agent, db, mitigation
     conn = db.connect()

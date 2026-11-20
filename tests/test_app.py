@@ -120,7 +120,7 @@ def test_follow_up_in_the_ui():
 def test_landing_page_shows_the_radar_and_analyze_runs_it():
     page = render()
     assert any(s.value.startswith("Risk radar") for s in page.subheader)
-    page.button(key="radar-0").click().run()
+    page.button(key="radar-Scenario news-0").click().run()
     assert not page.exception
     assert page.session_state["question"].startswith("Port of Rotterdam")
     assert page.metric
@@ -133,3 +133,23 @@ def test_save_a_plan_and_find_it_in_the_decision_log():
     page.session_state["question"] = ""
     page.run()
     assert any(s.value == "Decision log" for s in page.subheader)
+
+
+def test_live_radar_shows_real_headlines_without_the_network(monkeypatch):
+    from datetime import UTC, datetime
+
+    from ripple import live
+    today = datetime.now(UTC).date()
+    alert = {"id": "news-test", "source": "Example Wire", "kind": "news", "severity": "high", "date": today,
+             "text": "Dockers walk out at Rotterdam, terminals closed", "url": "https://example.org/a",
+             "days": 3, "ports": ["NLRTM"]}
+    monkeypatch.setattr(live, "fetch", lambda conn, day=None: ([alert], ["GDACS: ConnectionError"]))
+    page = AppTest.from_file(APP, default_timeout=60)
+    page.session_state["radar_mode"] = "Live news"
+    page.run()
+    assert not page.exception
+    assert any(s.value.startswith("Live risk radar") for s in page.subheader)
+    assert any("Dockers walk out at Rotterdam" in m.value for m in page.markdown)
+    assert any("Skipped: GDACS" in c.value for c in page.caption)
+    page.button(key="radar-Live news-0").click().run()
+    assert page.session_state["question"] == "Port of Rotterdam closed for 3 days"

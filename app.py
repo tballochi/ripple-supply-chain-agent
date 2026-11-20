@@ -8,14 +8,14 @@ explains it. No analysis logic lives here.
 import base64
 import json
 import os
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from ripple import agent, db, llm, mitigation, plain_rag, queries, radar, viz, workspace
+from ripple import agent, db, live, llm, mitigation, plain_rag, queries, radar, viz, workspace
 from ripple.generate import SCENARIO_DATE
 
 EXAMPLES = [
@@ -325,21 +325,58 @@ def ask(question: str) -> None:
     st.session_state["question"] = question
 
 
+@st.cache_data(ttl=1800, show_spinner="Reading today's news (GDACS, Google News)...")
+def live_rows(day: str) -> tuple[list, list]:
+    """Fetch real events (at most every 30 minutes) and simulate them on the graph."""
+    conn = db.connect()
+    try:
+        problems = live.refresh(conn)
+        return live.scan(conn), problems
+    finally:
+        conn.close()
+
+
 def show_radar() -> None:
-    rows = [r for r in radar_rows() if r["shipments"]]
-    st.subheader(f"Risk radar, {SCENARIO_DATE:%d %B %Y}")
-    st.caption("Before you ask: every serious news alert of the last 3 days that names a port, "
-               "with what is left of it simulated on the graph, ranked by the cargo that would arrive "
-               "later than customers tolerate.")
+    mode = st.segmented_control("News source", ["Scenario news", "Live news"], default="Scenario news",
+                                key="radar_mode", label_visibility="collapsed")
+    if mode == "Live news":
+        try:
+            rows, problems = live_rows(datetime.now(UTC).date().isoformat())
+        except Exception as error:  # the network or the workspace: never break the page
+            rows, problems = [], [f"live mode unavailable ({error.__class__.__name__})"]
+        rows = [r for r in rows if r["shipments"]]
+        st.subheader(f"Live risk radar, {datetime.now(UTC):%d %B %Y}")
+        st.caption("Real events of the last 3 days from GDACS (cyclones, earthquakes, floods) and "
+                   "Google News (strikes, closures, cyber incidents) that touch a port of the graph. The "
+                   "ports and their positions are real; the closure is simulated on Ripple's synthetic "
+                   f"vessels and shipments as of {SCENARIO_DATE:%d %B %Y}.")
+        for problem in problems:
+            st.caption(f"Skipped: {problem}. Showing the news fetched earlier, if any.")
+        if not rows:
+            st.info("No real event touches a port of the graph right now.")
+    else:
+        rows = [r for r in radar_rows() if r["shipments"]]
+        st.subheader(f"Risk radar, {SCENARIO_DATE:%d %B %Y}")
+        st.caption("Before you ask: every serious news alert of the last 3 days that names a port, "
+                   "with what is left of it simulated on the graph, ranked by the cargo that would arrive "
+                   "later than customers tolerate.")
     for i, r in enumerate(rows[:6]):
         with st.container(border=True):
             left, middle, right = st.columns([5, 4, 1.4])
-            left.markdown(f"**{', '.join(r['port_names'])}** · {r['severity']} · {r['date']:%d %b}  \n"
-                          f"{r['text']}")
+            if "headlines" in r:
+                more = f" · {r['articles']} articles" if r["articles"] > 1 else ""
+                source = f"[{r['source']}]({r['headlines'][0]['url']})" if r["headlines"][0]["url"] else r["source"]
+                left.markdown(f"**{', '.join(r['port_names'])}** · {r['severity']} · {r['date']:%d %b} · "
+                              f"{source}{more}  \n{r['text']}")
+            else:
+                left.markdown(f"**{', '.join(r['port_names'])}** · {r['severity']} · {r['date']:%d %b}  \n"
+                              f"{r['text']}")
             middle.markdown(f"**{agent.money(r['value_beyond_tolerance_usd'])}** beyond tolerance  \n"
                             f"{r['shipments']} shipments late, {r['customers']} customers, "
-                            f"{r['ripple_customers']} via suppliers, {r['days_remaining']} day(s) left")
-            right.button("Analyze", key=f"radar-{i}", on_click=ask, args=(r["question"],), width="stretch")
+                            f"{r['ripple_customers']} via suppliers, "
+                            + (f"simulated for {r['days_total']} day(s)" if "headlines" in r
+                               else f"{r['days_remaining']} day(s) left"))
+            right.button("Analyze", key=f"radar-{mode}-{i}", on_click=ask, args=(r["question"],), width="stretch")
 
 
 def show_decision_log() -> None:

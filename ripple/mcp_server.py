@@ -17,7 +17,7 @@ import relate
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from . import agent, db, mitigation, queries, radar, retrieval, workspace
+from . import agent, db, live, mitigation, queries, radar, retrieval, workspace
 
 server = MCPServer(
     "ripple",
@@ -165,6 +165,22 @@ def risk_radar(limit: int = 10) -> dict:
     finally:
         conn.close()
     return plain({"today": radar.SCENARIO_DATE, "alerts": rows})
+
+
+@server.tool()
+def live_radar(limit: int = 10) -> dict:
+    """Today's real events: GDACS hazards (cyclones, earthquakes, floods) and Google News
+    headlines (strikes, closures, cyber incidents) of the last 3 days that touch a port of the
+    graph, each simulated as a closure of those ports on the synthetic network and ranked like
+    risk_radar. Needs internet; if a source is down, the news fetched earlier is used and the
+    problem is listed in `skipped`."""
+    conn = db.connect()
+    try:
+        problems = live.refresh(conn)
+        rows = live.scan(conn)[:limit]
+    finally:
+        conn.close()
+    return plain({"simulated_on": radar.SCENARIO_DATE, "events": rows, "skipped": problems})
 
 
 @server.tool()

@@ -307,8 +307,6 @@ tests/                 185 tests
 
 ## AI tools used
 
-- **The code, tests and documentation were written with [Claude Code](https://claude.com/claude-code)**
-  (Anthropic), working under my direction milestone by milestone.
 - **At runtime, optionally:** an LLM through the free tier of Groq (`openai/gpt-oss-120b`), or
   Mistral (`mistral-small-latest`), for planning, explanations and free questions.
 - **Embeddings:** `BAAI/bge-small-en-v1.5`, run locally with fastembed.

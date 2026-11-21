@@ -3,7 +3,7 @@
 Run with:  python -m ripple.mcp_server      (stdio transport)
 
 MCP (Model Context Protocol) is a standard way to give tools to an AI agent.
-Once this server is registered in Claude Code, Cursor or any MCP client, the
+Once this server is registered in any MCP client (desktop assistants, IDEs), the
 agent can ask "what if Rotterdam closes for 3 days?" and call these tools
 itself. Every answer carries the graph paths, so the calling agent can
 explain its reasoning too.

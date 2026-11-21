@@ -23,7 +23,7 @@ SUPPLIES chains, date arithmetic, point distances, COLLECT subqueries, and full-
 indexes fused in one SEARCH query. Every answer lists the queries Relate ran, with a command to
 replay them in Relate's CLI. Free questions get LLM-written Cypher, refused unless EXPLAIN says
 read-only. An optional free LLM (Groq), a deterministic no-LLM mode, Streamlit and an MCP server
-with 12 tools. The code was written with Claude Code.
+with 12 tools.
 
 ### Challenges we ran into
 Making the comparison with plain RAG fair rather than a strawman: the baseline gets every record

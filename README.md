@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo.svg" width="112" alt="Ripple logo: three waves, green, white and grey"></p>
+<p align="center"><img src="assets/logo.svg" width="112" alt="Ripple logo: a green node and three hops, each smaller than the last"></p>
 
 <h1 align="center">Ripple</h1>
 
@@ -211,7 +211,7 @@ Relate is visible in the app, not only behind it:
 <details>
 <summary><b>MCP server: 12 tools</b></summary>
 
-Register it in any MCP client (a `.mcp.json` is included for Claude Code):
+Register it in any MCP client (a project-level `.mcp.json` is included):
 
 ```json
 { "mcpServers": { "ripple": { "command": ".venv/bin/python", "args": ["-m", "ripple.mcp_server"] } } }
